@@ -638,6 +638,73 @@ export default function AdminDashboard({
     setIsProductModalOpen(true);
   };
 
+  // AUTO-FILL FAKE DEMO PRODUCT DATA
+  const fillFakeProductData = () => {
+    const fakeSamples = [
+      {
+        name: 'ماوس ألعاب لاسلكي أومين برو زيرو GT',
+        nameEn: 'Omen Pro Zero GT Wireless Gaming Mouse',
+        desc: 'ماوس ألعاب احترافي لاسلكي فائق الدقة مزود بمستشعر أبتيكال 26K DPI ووزن خفيف جداً يبلغ 52 جراماً فقط لتحقيق أعلى استجابة في ألعاب المنظور الأول FPS.',
+        price: 85000,
+        oldPrice: 110000,
+        stock: 25,
+        category: categories[0]?.id || 'mouses',
+        imgUrl: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?q=80&w=800',
+        extraImgs: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?q=80&w=800\nhttps://images.unsplash.com/photo-1629429408209-1f912961dbd8?q=80&w=800',
+        features: 'مستشعر PixArt PAW3395 بدقة 26,000 DPI\nوزن خفيف فائق 52 جرام\nسرعة استجابة 1000Hz Polling Rate\nعمر بطارية يصل إلى 90 ساعة عمل متواصل',
+        specs: 'المستشعر:PixArt PAW3395 البصري\nالوزن:52 جرام\nالبطارية:حتى 90 ساعة\nنوع الاتصال:2.4GHz لاسلكي + كابل Type-C',
+        colors: [
+          { name: 'أسود مطفي', hex: '#111111' },
+          { name: 'أبيض ناصع', hex: '#FFFFFF' },
+          { name: 'أزرق سايبر', hex: '#212ADC' }
+        ],
+        customOptions: [
+          { name: 'نوع المفتاح Switch', choices: ['أبتيكال كليكي رائع', 'صامت Silent Linear'] },
+          { name: 'نوع الشحن', choices: ['قاعدة شحن لاسلكية', 'كابل فقط Type-C'] }
+        ]
+      },
+      {
+        name: 'كيبورد ميكانيكي RGB أومين إكس 75',
+        nameEn: 'Omen X75 Mechanical RGB Gaming Keyboard',
+        desc: 'لوحة مفاتيح ميكانيكية بنسبة 75% مع مفاتيح مدهونة سلفاً وتدعيم صوتي متعدد الطبقات تجعل تجربة الكتابة والألعاب ممتعة واستثنائية.',
+        price: 135000,
+        oldPrice: 165000,
+        stock: 15,
+        category: categories.find(c => c.id === 'keyboards')?.id || categories[0]?.id || 'keyboards',
+        imgUrl: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?q=80&w=800',
+        extraImgs: 'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?q=80&w=800',
+        features: 'تصميم 75% مدمج واحترافي\nمفاتيح ميكانيكية سريعة التجاوب\nإضاءة RGB ديناميكية مخصصة لكل مفتاح\nهيكل ألومنيوم متين مع عزل صوتي لمسي',
+        specs: 'نوع المفاتيح:Mechanical Hot-Swappable\nالإضاءة:16.8 مليون لون RGB\nالهيكل:ألومنيوم مع بولي كربونات\nالوصول:كابل برايدد قابل للفصل',
+        colors: [
+          { name: 'أسود شبحي', hex: '#0a0a0a' },
+          { name: 'أبيض فضائي', hex: '#f0f0f0' }
+        ],
+        customOptions: [
+          { name: 'نوع السويتش Switch', choices: ['أحمر خطي Red Linear', 'بني لمسي Brown Tactile'] }
+        ]
+      }
+    ];
+
+    const sample = fakeSamples[Math.floor(Math.random() * fakeSamples.length)];
+    setProdId(`wraith-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`);
+    setProdName(sample.name);
+    setProdNameEn(sample.nameEn);
+    setProdDesc(sample.desc);
+    setProdPrice(sample.price);
+    setProdOldPrice(sample.oldPrice);
+    setProdStock(sample.stock);
+    setProdCategory(sample.category);
+    setProdImgUrl(sample.imgUrl);
+    setProdExtraImagesText(sample.extraImgs);
+    setProdIsFeatured(true);
+    setProdFeaturesText(sample.features);
+    setProdSpecsText(sample.specs);
+    setHasColorsSection(true);
+    setProdColors(sample.colors);
+    setProdCustomOptions(sample.customOptions);
+    triggerToast('تمت تعبئة كافة بيانات المنتج التجريبية بنجاح! ✨', 'info');
+  };
+
   // SAVE CATEGORY (CREATE OR UPDATE)
   const handleSaveCategoryForm = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1669,10 +1736,18 @@ export default function AdminDashboard({
           <div className="absolute inset-0 cursor-default" onClick={() => setIsProductModalOpen(false)} />
           
           <div className="relative z-10 w-full max-w-2xl rounded-3xl bg-black/60 backdrop-blur-xl border border-white/10 p-8 text-right max-h-[90vh] overflow-y-auto shadow-[0_0_50px_rgba(33,42,220,0.15)] overflow-hidden">
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-blue to-transparent opacity-50" />
-            <h3 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-brand-blue mb-6 border-b border-white/10 pb-4">
-              {editingProduct ? `تعديل عتاد: ${editingProduct.name}` : 'إدراج ملحق ألعاب فاخر جديد للترسانة'}
-            </h3>
+            <div className="flex items-center justify-between border-b border-white/10 pb-4 mb-6">
+              <h3 className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-white to-brand-blue">
+                {editingProduct ? `تعديل عتاد: ${editingProduct.name}` : 'إدراج ملحق ألعاب فاخر جديد للترسانة'}
+              </h3>
+              <button
+                type="button"
+                onClick={fillFakeProductData}
+                className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500 border border-amber-500/40 text-amber-300 hover:text-black text-xs font-bold transition-all duration-300 cursor-pointer flex items-center gap-1.5 shadow-[0_0_15px_rgba(245,158,11,0.2)]"
+              >
+                <span>✨ تعبئة بيانات تجريبية (Auto-Fill)</span>
+              </button>
+            </div>
 
             <form onSubmit={handleSaveProductForm} className="space-y-5">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
