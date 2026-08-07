@@ -2307,6 +2307,8 @@ export default function AdminDashboard({
             </form>
           </div>
         </div>
+      )}
+
       {/* GLOBAL TOAST NOTIFICATION OVERLAY */}
       {toastMessage && (
         <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl bg-black/90 border border-white/20 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] text-white text-xs font-bold animate-slide-up">
