@@ -51,30 +51,43 @@ export async function sendTelegramNotification(order: Order, extra: ExtraDetails
 
   // Format products list
   const itemsText = order.items
-    .map((item) => `• <b>${item.productName}</b> (العدد: ${item.quantity}) (السعر: ${item.price.toLocaleString()} د.ع)`)
-    .join('\n');
+    .map((item, idx) => {
+      let optsDetail = '';
+      if (item.optionsSummary) {
+        optsDetail = `\n   └ ⚙️ <i>الخيارات: ${item.optionsSummary}</i>`;
+      } else if (item.selectedColor || item.selectedOptions) {
+        const parts = [];
+        if (item.selectedColor) parts.push(`اللون: ${item.selectedColor}`);
+        if (item.selectedOptions) {
+          Object.entries(item.selectedOptions).forEach(([k, v]) => parts.push(`${k}: ${v}`));
+        }
+        if (parts.length > 0) optsDetail = `\n   └ ⚙️ <i>الخيارات: ${parts.join(' | ')}</i>`;
+      }
+      const itemSubtotal = (item.price * item.quantity).toLocaleString();
+      return `${idx + 1}. <b>${item.productName}</b>\n   └ 📦 الكمية: ${item.quantity} × ${item.price.toLocaleString()} د.ع = <b>${itemSubtotal} د.ع</b>${optsDetail}`;
+    })
+    .join('\n\n');
 
   // Format the comprehensive HTML notification message
   const message = `
-<b>🔔 طلب جديد تم استلامه بنجاح كزائر!</b>
+🛍️ <b>طلب جديد في المتجر (OMEN STORE)!</b>
+━━━━━━━━━━━━━━━━━━
+🆔 <b>رقم الطلب:</b> <code>${order.id}</code>
+👤 <b>اسم العميل:</b> ${order.customerName}
+📞 <b>رقم الجوال:</b> <code>${order.phone}</code>
+📍 <b>المحافظة:</b> ${extra.governorate || 'غير محدد'}
+🏙️ <b>المدينة / المنطقة:</b> ${order.city}
+🏠 <b>العنوان التفصيلي:</b> ${order.address}
+🏢 <b>معلم قريب:</b> ${extra.nearbyLandmark || 'لا يوجد'}
+💬 <b>ملاحظات العميل:</b> ${extra.notes || 'لا يوجد'}
 
-<b>رقم الطلب:</b> <code>${order.id}</code>
-<b>اسم العميل:</b> ${order.customerName}
-<b>رقم الجوال:</b> ${order.phone}
-<b>المحافظة:</b> ${extra.governorate}
-<b>المدينة:</b> ${order.city}
-<b>العنوان:</b> ${order.address}
-<b>معلم قريب:</b> ${extra.nearbyLandmark || 'لا يوجد'}
-<b>ملاحظات العميل:</b> ${extra.notes || 'لا يوجد'}
-
-<b>📦 المنتجات المطلوبة:</b>
+🛒 <b>تفاصيل المنتجات المطلوبة:</b>
 ${itemsText}
 
-<b>الإجمالي الكلي:</b> ${order.totalAmount.toLocaleString()} د.ع
-<b>حالة الطلب:</b> قيد المراجعة (Pending)
-<b>طريقة الدفع:</b> الدفع عند الاستلام (Cash On Delivery)
-<b>التاريخ:</b> ${dateStr}
-<b>الوقت:</b> ${timeStr}
+━━━━━━━━━━━━━━━━━━
+💰 <b>إجمالي المبلغ المستحق:</b> <b>${order.totalAmount.toLocaleString()} د.ع</b>
+💳 <b>طريقة الدفع:</b> الدفع عند الاستلام (COD)
+⏰ <b>تاريخ الطلب:</b> ${dateStr} | ${timeStr}
 `.trim();
 
   const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;

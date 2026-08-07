@@ -284,29 +284,43 @@ app.post("/api/checkout", rateLimiter(5, 15 * 60 * 1000), async (req, res) => {
       const timeStr = dateObj.toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
       const itemsText = orderData.items
-        .map((item) => `• <b>${item.productName}</b> (العدد: ${item.quantity}) (السعر: ${item.price.toLocaleString()} د.ع)`)
-        .join("\n");
+        .map((item, idx) => {
+          let optsDetail = "";
+          if (item.optionsSummary) {
+            optsDetail = `\n   └ ⚙️ <i>الخيارات: ${item.optionsSummary}</i>`;
+          } else if (item.selectedColor || item.selectedOptions) {
+            const parts = [];
+            if (item.selectedColor) parts.push(`اللون: ${item.selectedColor}`);
+            if (item.selectedOptions) {
+              Object.entries(item.selectedOptions).forEach(([k, v]) => parts.push(`${k}: ${v}`));
+            }
+            if (parts.length > 0) optsDetail = `\n   └ ⚙️ <i>الخيارات: ${parts.join(" | ")}</i>`;
+          }
+          const itemSubtotal = (item.price * item.quantity).toLocaleString();
+          return `${idx + 1}. <b>${item.productName}</b>\n   └ 📦 الكمية: ${item.quantity} × ${item.price.toLocaleString()} د.ع = <b>${itemSubtotal} د.ع</b>${optsDetail}`;
+        })
+        .join("\n\n");
 
       const telegramMsg = `
-<b>🔔 طلب جديد تم استلامه بنجاح كزائر!</b>
+🛍️ <b>طلب جديد في المتجر (OMEN STORE)!</b>
+━━━━━━━━━━━━━━━━━━
+🆔 <b>رقم الطلب:</b> <code>${orderId}</code>
+👤 <b>اسم العميل:</b> ${orderData.name}
+📞 <b>رقم الجوال:</b> <code>${orderData.phone}</code>
+📍 <b>المحافظة:</b> ${orderData.governorate || "غير محدد"}
+🏙️ <b>المدينة / المنطقة:</b> ${orderData.city}
+🏠 <b>العنوان التفصيلي:</b> ${orderData.address}
+🏢 <b>معلم قريب:</b> ${orderData.nearbyLandmark || "لا يوجد"}
+💬 <b>ملاحظات العميل:</b> ${orderData.notes || "لا يوجد"}
 
-<b>رقم الطلب:</b> <code>${orderId}</code>
-<b>اسم العميل:</b> ${orderData.name}
-<b>رقم الجوال:</b> ${orderData.phone}
-<b>المحافظة:</b> ${orderData.governorate}
-<b>المدينة:</b> ${orderData.city}
-<b>العنوان:</b> ${orderData.address}
-<b>معلم قريب:</b> ${orderData.nearbyLandmark || "لا يوجد"}
-<b>ملاحظات العميل:</b> ${orderData.notes || "لا يوجد"}
-
-<b>📦 المنتجات المطلوبة:</b>
+🛒 <b>تفاصيل المنتجات المطلوبة:</b>
 ${itemsText}
 
-<b>الإجمالي الكلي:</b> ${grandTotal.toLocaleString()} د.ع
-<b>حالة الطلب:</b> قيد المراجعة (Pending)
-<b>طريقة الدفع:</b> الدفع عند الاستلام (Cash On Delivery)
-<b>التاريخ:</b> ${dateStr}
-<b>الوقت:</b> ${timeStr}
+━━━━━━━━━━━━━━━━━━
+🚚 <b>رسوم الشحن:</b> ${shippingFee > 0 ? `${shippingFee.toLocaleString()} د.ع` : "مجاني"}
+💰 <b>إجمالي المبلغ المستحق:</b> <b>${grandTotal.toLocaleString()} د.ع</b>
+💳 <b>طريقة الدفع:</b> الدفع عند الاستلام (COD)
+⏰ <b>تاريخ الطلب:</b> ${dateStr} | ${timeStr}
 `.trim();
 
       const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
@@ -318,9 +332,9 @@ ${itemsText}
 
       try {
         await sendTelegramWithRetry(telegramUrl, payload);
+        console.log(`Telegram order notification sent successfully for ${orderId}`);
       } catch (tgErr) {
         console.error("Telegram notification failed after all retries:", tgErr);
-        // We do not fail the entire response, as the order was already written to the database.
       }
     } else {
       console.warn("Telegram BOT_TOKEN or CHAT_ID is missing. Notification skipped.");

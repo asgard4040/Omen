@@ -32,7 +32,7 @@ export default function CartDrawer({
     name: '',
     phone: '',
     governorate: 'بغداد',
-    city: 'بغداد',
+    city: '',
     address: '',
     nearbyLandmark: '',
     notes: '',
@@ -139,7 +139,7 @@ export default function CartDrawer({
   const handleReset = () => {
     setCheckoutStep('cart');
     setFormData({
-      name: '', phone: '', governorate: 'بغداد', city: 'بغداد', address: '', nearbyLandmark: '', notes: '', paymentMethod: 'cod',
+      name: '', phone: '', governorate: 'بغداد', city: '', address: '', nearbyLandmark: '', notes: '', paymentMethod: 'cod',
     });
     setFormErrors({});
     setCreatedOrder(null);
@@ -359,7 +359,7 @@ export default function CartDrawer({
                         
                         <div className="grid grid-cols-2 gap-4">
                           <SelectField label="المحافظة" name="governorate" value={formData.governorate} onChange={handleInputChange} error={formErrors.governorate} options={GOVERNORATES} disabled={isSubmitting} icon={<MapPin className="w-4 h-4" />} />
-                          <SelectField label="المدينة" name="city" value={formData.city} onChange={handleInputChange} error={formErrors.city} options={CITIES} disabled={isSubmitting} icon={<MapPin className="w-4 h-4" />} />
+                          <InputField label="المدينة / المنطقة" name="city" value={formData.city} onChange={handleInputChange} error={formErrors.city} icon={<MapPin className="w-4 h-4" />} disabled={isSubmitting} placeholder="أدخل اسم مدينتك" />
                         </div>
 
                         <InputField label="العنوان التفصيلي" name="address" value={formData.address} onChange={handleInputChange} error={formErrors.address} icon={<MapPin className="w-4 h-4" />} disabled={isSubmitting} placeholder="الحي، الشارع، المنزل" />
