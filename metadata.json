@@ -1,0 +1,6 @@
+{
+  "name": "Arabic Gaming Accessories Store",
+  "description": "A premium, dark-themed, and responsive Arabic gaming accessories store with an RTL layout, glassmorphism UI, and elegant micro-animations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

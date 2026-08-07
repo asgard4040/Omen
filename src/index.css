@@ -1,0 +1,66 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Cairo", sans-serif;
+  --font-orbitron: "Cairo", sans-serif;
+  
+  --color-brand-blue: #212adc;
+  --color-brand-lavender: #dfdcfb;
+  --color-brand-black: #000000;
+  
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-full: 0px;
+}
+
+/* Base custom resets and scrollbars */
+* {
+  border-radius: 0px !important;
+}
+
+body {
+  background-color: #000000;
+  color: #dfdcfb;
+  font-family: "Cairo", sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+::-webkit-scrollbar-thumb {
+  background: #212adc;
+  border-radius: 0px !important;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #dfdcfb;
+}
+
+/* Minimalist border design */
+.sharp-border {
+  border: 1px solid rgba(223, 220, 251, 0.2);
+}
+
+.sharp-border-active {
+  border: 1px solid #212adc;
+}
+
+/* Clean background panels */
+.brand-panel {
+  background-color: #000000;
+  border: 1px solid rgba(223, 220, 251, 0.15);
+}
+
+.brand-panel-highlight {
+  background-color: rgba(33, 42, 220, 0.08);
+  border: 1px solid #212adc;
+}
