@@ -257,7 +257,6 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
                             className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                               isSelected
                                 ? 'bg-brand-blue text-white border-brand-blue shadow-[0_0_15px_rgba(33,42,220,0.5)]'
-                                ? 'bg-brand-blue text-white border-brand-blue shadow-[0_0_15px_rgba(33,42,220,0.5)]'
                                 : 'bg-black/40 border-white/10 text-white/70 hover:border-white/30'
                             }`}
                           >
