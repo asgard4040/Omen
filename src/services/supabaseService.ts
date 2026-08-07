@@ -234,35 +234,37 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
 export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCount'>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  const basePayload: any = {
+  // Tier 1: Try camelCase payload matching default Supabase JS conventions
+  const camelPayload: any = {
     id: product.id,
-    category_id: product.category,
+    category: product.category,
     name: product.name,
-    name_en: product.nameEn,
+    nameEn: product.nameEn,
     description: product.description,
     price: product.price,
-    old_price: product.oldPrice || null,
-    image_url: product.image,
+    originalPrice: product.oldPrice || null,
+    image: product.image,
     images: product.images || [product.image],
     stock: product.stock,
-    is_featured: product.isFeatured || false,
+    isFeatured: product.isFeatured || false,
     features: product.features || [],
     specs: product.specs || [],
     colors: product.colors || [],
-    custom_options: product.customOptions || [],
+    customOptions: product.customOptions || [],
     rating: 5.0,
-    reviews_count: 0,
+    reviewsCount: 0,
   };
 
   let { data, error } = await supabase
     .from('products')
-    .insert([basePayload])
+    .insert([camelPayload])
     .select()
     .single();
 
+  // Tier 2: Try snake_case schema payload if camelCase fails
   if (error) {
-    console.warn('Initial product insert failed, retrying with safe core schema fields:', error.message);
-    const safePayload: any = {
+    console.warn('CamelCase insert failed, retrying with snake_case schema:', error.message);
+    const snakePayload: any = {
       id: product.id,
       category_id: product.category,
       name: product.name,
@@ -271,84 +273,121 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       price: product.price,
       old_price: product.oldPrice || null,
       image_url: product.image,
+      images: product.images || [product.image],
       stock: product.stock,
       is_featured: product.isFeatured || false,
       features: product.features || [],
       specs: product.specs || [],
+      colors: product.colors || [],
+      custom_options: product.customOptions || [],
       rating: 5.0,
       reviews_count: 0,
     };
 
     const retryRes = await supabase
       .from('products')
-      .insert([safePayload])
+      .insert([snakePayload])
       .select()
       .single();
 
     if (retryRes.error) {
-      console.error('Final createProduct error:', retryRes.error);
-      throw new Error(`خطأ في حفظ المنتج بقاعدة البيانات: ${retryRes.error.message}`);
+      console.warn('Snake_case insert failed, attempting minimal core payload:', retryRes.error.message);
+      // Tier 3: Try minimal core payload
+      const minPayload: any = {
+        id: product.id,
+        category: product.category,
+        name: product.name,
+        nameEn: product.nameEn,
+        description: product.description,
+        price: product.price,
+        image: product.image,
+        stock: product.stock,
+      };
+
+      const minRes = await supabase
+        .from('products')
+        .insert([minPayload])
+        .select()
+        .single();
+
+      if (minRes.error) {
+        console.error('Final createProduct error:', minRes.error);
+        throw new Error(`خطأ في حفظ المنتج بقاعدة البيانات: ${minRes.error.message}`);
+      }
+      data = minRes.data;
+    } else {
+      data = retryRes.data;
     }
-    data = retryRes.data;
   }
 
   return {
     id: data.id,
     name: data.name,
-    nameEn: data.name_en || data.nameEn || '',
+    nameEn: data.nameEn || data.name_en || '',
     description: data.description,
     price: Number(data.price),
-    oldPrice: data.old_price ? Number(data.old_price) : (data.originalPrice ? Number(data.originalPrice) : undefined),
+    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
     rating: Number(data.rating),
-    reviewsCount: data.reviews_count || data.reviewsCount || 0,
-    image: data.image_url || data.image || '',
-    images: Array.isArray(data.images) ? data.images : (data.image_url ? [data.image_url] : []),
-    category: data.category_id || data.category || '',
+    reviewsCount: data.reviewsCount || data.reviews_count || 0,
+    image: data.image || data.image_url || '',
+    images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
+    category: data.category || data.category_id || '',
     stock: data.stock,
-    isFeatured: data.is_featured || data.isFeatured || false,
+    isFeatured: data.isFeatured || data.is_featured || false,
     features: data.features || [],
     specs: data.specs || [],
     colors: Array.isArray(data.colors) ? data.colors : [],
-    customOptions: Array.isArray(data.custom_options || data.customOptions) ? (data.custom_options || data.customOptions) : [],
+    customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
   };
 }
 
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  const payload: any = {};
-  if (product.category !== undefined) payload.category_id = product.category;
-  if (product.name !== undefined) payload.name = product.name;
-  if (product.nameEn !== undefined) payload.name_en = product.nameEn;
-  if (product.description !== undefined) payload.description = product.description;
-  if (product.price !== undefined) payload.price = product.price;
-  if (product.oldPrice !== undefined) payload.old_price = product.oldPrice || null;
-  if (product.image !== undefined) payload.image_url = product.image;
-  if (product.images !== undefined) payload.images = product.images;
-  if (product.stock !== undefined) payload.stock = product.stock;
-  if (product.isFeatured !== undefined) payload.is_featured = product.isFeatured;
-  if (product.features !== undefined) payload.features = product.features;
-  if (product.specs !== undefined) payload.specs = product.specs;
-  if (product.colors !== undefined) payload.colors = product.colors;
-  if (product.customOptions !== undefined) payload.custom_options = product.customOptions;
+  const camelPayload: any = {};
+  if (product.category !== undefined) camelPayload.category = product.category;
+  if (product.name !== undefined) camelPayload.name = product.name;
+  if (product.nameEn !== undefined) camelPayload.nameEn = product.nameEn;
+  if (product.description !== undefined) camelPayload.description = product.description;
+  if (product.price !== undefined) camelPayload.price = product.price;
+  if (product.oldPrice !== undefined) camelPayload.originalPrice = product.oldPrice || null;
+  if (product.image !== undefined) camelPayload.image = product.image;
+  if (product.images !== undefined) camelPayload.images = product.images;
+  if (product.stock !== undefined) camelPayload.stock = product.stock;
+  if (product.isFeatured !== undefined) camelPayload.isFeatured = product.isFeatured;
+  if (product.features !== undefined) camelPayload.features = product.features;
+  if (product.specs !== undefined) camelPayload.specs = product.specs;
+  if (product.colors !== undefined) camelPayload.colors = product.colors;
+  if (product.customOptions !== undefined) camelPayload.customOptions = product.customOptions;
 
   let { data, error } = await supabase
     .from('products')
-    .update(payload)
+    .update(camelPayload)
     .eq('id', id)
     .select()
     .single();
 
   if (error) {
-    console.warn('Initial product update failed, retrying with safe core schema fields:', error.message);
-    const safePayload = { ...payload };
-    delete safePayload.images;
-    delete safePayload.colors;
-    delete safePayload.custom_options;
+    console.warn('CamelCase update failed, retrying with snake_case schema:', error.message);
+    const snakePayload: any = {};
+    if (product.category !== undefined) snakePayload.category_id = product.category;
+    if (product.name !== undefined) snakePayload.name = product.name;
+    if (product.nameEn !== undefined) snakePayload.name_en = product.nameEn;
+    if (product.description !== undefined) snakePayload.description = product.description;
+    if (product.price !== undefined) snakePayload.price = product.price;
+    if (product.oldPrice !== undefined) snakePayload.old_price = product.oldPrice || null;
+    if (product.image !== undefined) snakePayload.image_url = product.image;
+    if (product.images !== undefined) snakePayload.images = product.images;
+    if (product.stock !== undefined) snakePayload.stock = product.stock;
+    if (product.isFeatured !== undefined) snakePayload.is_featured = product.isFeatured;
+    if (product.features !== undefined) snakePayload.features = product.features;
+    if (product.specs !== undefined) snakePayload.specs = product.specs;
+    if (product.colors !== undefined) snakePayload.colors = product.colors;
+    if (product.customOptions !== undefined) snakePayload.custom_options = product.customOptions;
 
     const retryRes = await supabase
       .from('products')
-      .update(safePayload)
+      .update(snakePayload)
       .eq('id', id)
       .select()
       .single();
@@ -363,21 +402,21 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   return {
     id: data.id,
     name: data.name,
-    nameEn: data.name_en || data.nameEn || '',
+    nameEn: data.nameEn || data.name_en || '',
     description: data.description,
     price: Number(data.price),
-    oldPrice: data.old_price ? Number(data.old_price) : (data.originalPrice ? Number(data.originalPrice) : undefined),
+    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
     rating: Number(data.rating),
-    reviewsCount: data.reviews_count || data.reviewsCount || 0,
-    image: data.image_url || data.image || '',
-    images: Array.isArray(data.images) ? data.images : (data.image_url ? [data.image_url] : []),
-    category: data.category_id || data.category || '',
+    reviewsCount: data.reviewsCount || data.reviews_count || 0,
+    image: data.image || data.image_url || '',
+    images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
+    category: data.category || data.category_id || '',
     stock: data.stock,
-    isFeatured: data.is_featured || data.isFeatured || false,
+    isFeatured: data.isFeatured || data.is_featured || false,
     features: data.features || [],
     specs: data.specs || [],
     colors: Array.isArray(data.colors) ? data.colors : [],
-    customOptions: Array.isArray(data.custom_options || data.customOptions) ? (data.custom_options || data.customOptions) : [],
+    customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
   };
 }
 
