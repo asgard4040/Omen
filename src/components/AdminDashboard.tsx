@@ -136,6 +136,7 @@ export default function AdminDashboard({
   const [prodFeaturesText, setProdFeaturesText] = useState(''); // comma-separated or lines
   const [prodSpecsText, setProdSpecsText] = useState(''); // Label:Value lines
   const [isUploading, setIsUploading] = useState(false);
+  const [isSavingProduct, setIsSavingProduct] = useState(false);
 
   // -- Product Colors & Custom Options
   const [hasColorsSection, setHasColorsSection] = useState(false);
@@ -482,6 +483,7 @@ export default function AdminDashboard({
       customOptions: prodCustomOptions.filter(o => o.name.trim() !== '' && o.choices.length > 0),
     };
 
+    setIsSavingProduct(true);
     setGlobalLoading(true);
     try {
       if (!isDbLive) {
@@ -493,17 +495,19 @@ export default function AdminDashboard({
 
       if (editingProduct) {
         await updateProduct(editingProduct.id, productPayload);
-        triggerToast('تم تعديل بيانات الملحق بنجاح!');
+        triggerToast('تم تعديل بيانات الملحق بنجاح!', 'success');
       } else {
         await createProduct(productPayload);
-        triggerToast('تم إدراج ملحق اللعب الجديد بالمتجر بنجاح!');
+        triggerToast('تم إدراج ملحق اللعب الجديد بالمتجر بنجاح!', 'success');
       }
       setIsProductModalOpen(false);
       setEditingProduct(null);
-      loadProducts();
+      await loadProducts();
     } catch (err: any) {
+      console.error("Save product error:", err);
       triggerToast(`خطأ في الحفظ: ${err.message || err}`, 'error');
     } finally {
+      setIsSavingProduct(false);
       setGlobalLoading(false);
     }
   };
@@ -2169,10 +2173,18 @@ export default function AdminDashboard({
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 h-12 rounded-2xl bg-brand-blue/20 border border-brand-blue/50 hover:bg-brand-blue hover:text-white text-xs font-bold text-white shadow-[0_0_15px_rgba(33,42,220,0.2)] hover:shadow-[0_0_25px_rgba(33,42,220,0.5)] cursor-pointer transition-all duration-300 relative overflow-hidden group"
+                  disabled={isSavingProduct}
+                  className={`flex-1 h-12 rounded-2xl bg-brand-blue/20 border border-brand-blue/50 hover:bg-brand-blue hover:text-white text-xs font-bold text-white shadow-[0_0_15px_rgba(33,42,220,0.2)] hover:shadow-[0_0_25px_rgba(33,42,220,0.5)] cursor-pointer transition-all duration-300 relative overflow-hidden group flex items-center justify-center gap-2 ${isSavingProduct ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   <div className="absolute inset-0 bg-gradient-to-r from-brand-blue/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                  <span className="relative z-10">{editingProduct ? 'حفظ تعديلات العتاد' : 'إدراج العتاد وتثبيتها بقاعدة البيانات'}</span>
+                  {isSavingProduct ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin shrink-0 text-white" />
+                      <span className="relative z-10">جاري الإدراج والحفظ بقاعدة البيانات...</span>
+                    </>
+                  ) : (
+                    <span className="relative z-10">{editingProduct ? 'حفظ تعديلات العتاد' : 'إدراج العتاد وتثبيتها بقاعدة البيانات'}</span>
+                  )}
                 </button>
               </div>
             </form>
@@ -2294,6 +2306,16 @@ export default function AdminDashboard({
               </div>
             </form>
           </div>
+        </div>
+      {/* GLOBAL TOAST NOTIFICATION OVERLAY */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-6 py-4 rounded-2xl bg-black/90 border border-white/20 backdrop-blur-xl shadow-[0_0_30px_rgba(0,0,0,0.8)] text-white text-xs font-bold animate-slide-up">
+          {toastMessage.type === 'error' ? (
+            <ShieldAlert className="h-5 w-5 text-red-400 shrink-0" />
+          ) : (
+            <CheckCircle className="h-5 w-5 text-emerald-400 shrink-0" />
+          )}
+          <span>{toastMessage.text}</span>
         </div>
       )}
 
