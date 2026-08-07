@@ -361,7 +361,7 @@ export default function App() {
         {/* Full background image */}
         <div 
           className="absolute inset-0 bg-cover bg-center select-none"
-          style={{ backgroundImage: `url('/hero-bg.jpg')` }}
+          style={{ backgroundImage: `url('https://images.unsplash.com/photo-1538481199705-c710c4e965fc?w=1600&auto=format&fit=crop&q=80')` }}
         />
         {/* Deep black/blue overlay to make text highly readable */}
         <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/70 to-black/95" />
