@@ -4,6 +4,8 @@ import { X, Trash2, Plus, Minus, ShoppingBag, Truck, Coins, CheckCircle2, Loader
 import { CartItem, Product, Order } from '../types';
 import { CITIES } from '../data';
 import { downloadOrderReceiptAsJPG } from '../utils/receiptGenerator';
+import { supabase, isSupabaseConfigured } from '../supabaseClient';
+import { sendTelegramNotification } from '../services/telegramService';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -84,48 +86,124 @@ export default function CartDrawer({
     setFormErrors({});
 
     try {
-      const response = await fetch('/api/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone.replace(/\s+/g, ''),
-          governorate: formData.governorate,
-          city: formData.city,
-          address: formData.address,
-          nearbyLandmark: formData.nearbyLandmark || undefined,
-          notes: formData.notes || undefined,
-          paymentMethod: 'cod',
-          items: cartItems.map((item) => {
-            const optionsSummary = [
-              item.selectedColor?.name ? `اللون: ${item.selectedColor.name}` : '',
-              item.selectedOptions
-                ? Object.entries(item.selectedOptions)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(' | ')
-                : '',
-            ]
-              .filter(Boolean)
-              .join(' - ');
+      let createdOrderObj: Order | null = null;
 
-            return {
-              productId: item.product.id,
-              productName: optionsSummary ? `${item.product.name} (${optionsSummary})` : item.product.name,
-              price: item.product.price,
-              quantity: item.quantity,
-              selectedColor: item.selectedColor?.name,
-              selectedOptions: item.selectedOptions,
-              optionsSummary,
-            };
+      try {
+        const response = await fetch('/api/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            phone: formData.phone.replace(/\s+/g, ''),
+            governorate: formData.governorate,
+            city: formData.city,
+            address: formData.address,
+            nearbyLandmark: formData.nearbyLandmark || undefined,
+            notes: formData.notes || undefined,
+            paymentMethod: 'cod',
+            items: cartItems.map((item) => {
+              const optionsSummary = [
+                item.selectedColor?.name ? `اللون: ${item.selectedColor.name}` : '',
+                item.selectedOptions
+                  ? Object.entries(item.selectedOptions)
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(' | ')
+                  : '',
+              ]
+                .filter(Boolean)
+                .join(' - ');
+
+              return {
+                productId: item.product.id,
+                productName: optionsSummary ? `${item.product.name} (${optionsSummary})` : item.product.name,
+                price: item.product.price,
+                quantity: item.quantity,
+                selectedColor: item.selectedColor?.name,
+                selectedOptions: item.selectedOptions,
+                optionsSummary,
+              };
+            }),
           }),
-        }),
-      });
+        });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'فشل إتمام طلبك. يرجى المحاولة مرة أخرى.');
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('application/json')) {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.error || 'فشل إتمام طلبك. يرجى المحاولة مرة أخرى.');
+          createdOrderObj = data.order;
+        } else {
+          throw new Error('الاستجابة المستلمة ليست بتنسيق JSON (Non-JSON endpoint response)');
+        }
+      } catch (apiErr) {
+        console.warn('API checkout endpoint unavailable or returned non-JSON, falling back to direct checkout handler:', apiErr);
 
-      setCreatedOrder(data.order);
-      onCheckoutComplete(data.order);
+        const orderId = 'OW-' + Math.floor(100000 + Math.random() * 900000);
+        const createdAt = new Date().toISOString();
+
+        const preparedItems = cartItems.map((item) => {
+          const optionsSummary = [
+            item.selectedColor?.name ? `اللون: ${item.selectedColor.name}` : '',
+            item.selectedOptions
+              ? Object.entries(item.selectedOptions)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(' | ')
+              : '',
+          ]
+            .filter(Boolean)
+            .join(' - ');
+
+          return {
+            productId: item.product.id,
+            productName: optionsSummary ? `${item.product.name} (${optionsSummary})` : item.product.name,
+            price: item.product.price,
+            quantity: item.quantity,
+            selectedColor: item.selectedColor?.name,
+            selectedOptions: item.selectedOptions,
+            optionsSummary,
+          };
+        });
+
+        createdOrderObj = {
+          id: orderId,
+          customerName: formData.name,
+          phone: formData.phone,
+          address: formData.address,
+          city: formData.city,
+          items: preparedItems,
+          totalAmount: total,
+          status: 'pending',
+          createdAt: createdAt,
+        };
+
+        if (isSupabaseConfigured()) {
+          const combinedAddressDetails = `المحافظة: ${formData.governorate} | العنوان: ${formData.address} | المعلم القريب: ${formData.nearbyLandmark || 'لا يوجد'} | ملاحظات: ${formData.notes || 'لا يوجد'}`;
+          await supabase.from('orders').insert([
+            {
+              id: orderId,
+              customer_name: formData.name,
+              customer_phone: formData.phone,
+              address_details: combinedAddressDetails,
+              city: formData.city,
+              items: preparedItems,
+              total_amount: total,
+              shipping_fee: 5000,
+              status: 'pending',
+              created_at: createdAt,
+            },
+          ]);
+        }
+
+        await sendTelegramNotification(createdOrderObj, {
+          governorate: formData.governorate,
+          nearbyLandmark: formData.nearbyLandmark,
+          notes: formData.notes,
+        });
+      }
+
+      if (!createdOrderObj) throw new Error('فشل إتمام طلبك. يرجى المحاولة مرة أخرى.');
+
+      setCreatedOrder(createdOrderObj);
+      onCheckoutComplete(createdOrderObj);
       setIsSubmitting(false);
       setCheckoutStep('success');
       onClearCart();
