@@ -428,7 +428,14 @@ export default function AdminDashboard({
   const handleSaveProductForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prodId || !prodName || !prodNameEn || !prodCategory || !prodPrice || !prodImgUrl) {
-      triggerToast('يرجى ملء كافة الحقول الأساسية المطلوبة!', 'error');
+      const missing = [];
+      if (!prodId) missing.push('معرف المنتج');
+      if (!prodName) missing.push('اسم المنتج العربي');
+      if (!prodNameEn) missing.push('اسم المنتج الإنجليزي');
+      if (!prodCategory) missing.push('القسم');
+      if (!prodPrice || prodPrice <= 0) missing.push('السعر');
+      if (!prodImgUrl) missing.push('صورة المنتج الرئيسية');
+      triggerToast(`يرجى استكمال الحقول المطلوبة: ${missing.join('، ')}`, 'error');
       return;
     }
 
@@ -618,7 +625,7 @@ export default function AdminDashboard({
       setProdPrice(0);
       setProdOldPrice(undefined);
       setProdStock(10);
-      setProdCategory(categories[0]?.id || 'mice');
+      setProdCategory(categories[0]?.id || 'mouses');
       setProdImgUrl('');
       setProdExtraImagesText('');
       setProdIsFeatured(false);
@@ -1776,7 +1783,7 @@ export default function AdminDashboard({
                   <div className="w-full sm:flex-1 space-y-2">
                     <label className="text-[9px] text-white/40 block">رابط الصورة المباشر المرفوع</label>
                     <input
-                      type="url"
+                      type="text"
                       required
                       placeholder="https://images.unsplash.com/... أو ارفعها مباشرة"
                       value={prodImgUrl}

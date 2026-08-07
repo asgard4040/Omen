@@ -240,12 +240,16 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       {
         id: product.id,
         category: product.category,
+        category_id: product.category,
         name: product.name,
         nameEn: product.nameEn,
+        name_en: product.nameEn,
         description: product.description,
         price: product.price,
         originalPrice: product.oldPrice || null,
+        old_price: product.oldPrice || null,
         image: product.image,
+        image_url: product.image,
         images: product.images || [],
         stock: product.stock,
         features: product.features,
@@ -255,6 +259,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
         custom_options: product.customOptions || [],
         rating: 5.0,
         reviewsCount: 0,
+        reviews_count: 0,
         available: true,
       },
     ])
@@ -288,13 +293,25 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
   const payload: any = {};
-  if (product.category !== undefined) payload.category = product.category;
+  if (product.category !== undefined) {
+    payload.category = product.category;
+    payload.category_id = product.category;
+  }
   if (product.name !== undefined) payload.name = product.name;
-  if (product.nameEn !== undefined) payload.nameEn = product.nameEn;
+  if (product.nameEn !== undefined) {
+    payload.nameEn = product.nameEn;
+    payload.name_en = product.nameEn;
+  }
   if (product.description !== undefined) payload.description = product.description;
   if (product.price !== undefined) payload.price = product.price;
-  if (product.oldPrice !== undefined) payload.originalPrice = product.oldPrice || null;
-  if (product.image !== undefined) payload.image = product.image;
+  if (product.oldPrice !== undefined) {
+    payload.originalPrice = product.oldPrice || null;
+    payload.old_price = product.oldPrice || null;
+  }
+  if (product.image !== undefined) {
+    payload.image = product.image;
+    payload.image_url = product.image;
+  }
   if (product.images !== undefined) payload.images = product.images;
   if (product.stock !== undefined) payload.stock = product.stock;
   if (product.features !== undefined) payload.features = product.features;
