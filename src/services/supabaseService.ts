@@ -384,6 +384,16 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   delete camelStandard.customOptions;
   delete camelStandard.images;
 
+  // Candidate 3: Core camelCase (only standard guaranteed columns)
+  const camelCore: any = {};
+  if (product.category !== undefined) camelCore.category = product.category;
+  if (product.name !== undefined) camelCore.name = product.name;
+  if (product.nameEn !== undefined) camelCore.nameEn = product.nameEn;
+  if (product.description !== undefined) camelCore.description = product.description;
+  if (product.price !== undefined) camelCore.price = product.price;
+  if (product.image !== undefined) camelCore.image = product.image;
+  if (product.stock !== undefined) camelCore.stock = product.stock;
+
   const snakeFull: any = {};
   if (product.category !== undefined) snakeFull.category_id = product.category;
   if (product.name !== undefined) snakeFull.name = product.name;
@@ -400,7 +410,7 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (product.colors !== undefined) snakeFull.colors = product.colors;
   if (product.customOptions !== undefined) snakeFull.custom_options = product.customOptions;
 
-  const candidates = [camelFull, camelStandard, snakeFull];
+  const candidates = [camelFull, camelStandard, camelCore, snakeFull];
   let data: any = null;
   let lastError: any = null;
 
