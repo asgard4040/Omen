@@ -234,38 +234,60 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
 export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCount'>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  // Tier 1: Try camelCase payload matching default Supabase JS conventions
-  const camelPayload: any = {
-    id: product.id,
-    category: product.category,
-    name: product.name,
-    nameEn: product.nameEn,
-    description: product.description,
-    price: product.price,
-    originalPrice: product.oldPrice || null,
-    image: product.image,
-    images: product.images || [product.image],
-    stock: product.stock,
-    isFeatured: product.isFeatured || false,
-    features: product.features || [],
-    specs: product.specs || [],
-    colors: product.colors || [],
-    customOptions: product.customOptions || [],
-    rating: 5.0,
-    reviewsCount: 0,
-  };
+  let targetId = product.id;
 
-  let { data, error } = await supabase
-    .from('products')
-    .insert([camelPayload])
-    .select()
-    .single();
-
-  // Tier 2: Try snake_case schema payload if camelCase fails
-  if (error) {
-    console.warn('CamelCase insert failed, retrying with snake_case schema:', error.message);
-    const snakePayload: any = {
-      id: product.id,
+  const candidates: any[] = [
+    // 1. Full camelCase (if custom columns colors/customOptions/images exist)
+    {
+      id: targetId,
+      category: product.category,
+      name: product.name,
+      nameEn: product.nameEn,
+      description: product.description,
+      price: product.price,
+      originalPrice: product.oldPrice || null,
+      image: product.image,
+      images: product.images || [product.image],
+      stock: product.stock,
+      isFeatured: product.isFeatured || false,
+      features: product.features || [],
+      specs: product.specs || [],
+      colors: product.colors || [],
+      customOptions: product.customOptions || [],
+      rating: 5.0,
+      reviewsCount: 0,
+    },
+    // 2. Standard camelCase (without extended customOptions/colors/images)
+    {
+      id: targetId,
+      category: product.category,
+      name: product.name,
+      nameEn: product.nameEn,
+      description: product.description,
+      price: product.price,
+      originalPrice: product.oldPrice || null,
+      image: product.image,
+      stock: product.stock,
+      isFeatured: product.isFeatured || false,
+      features: product.features || [],
+      specs: product.specs || [],
+      rating: 5.0,
+      reviewsCount: 0,
+    },
+    // 3. Minimal camelCase core
+    {
+      id: targetId,
+      category: product.category,
+      name: product.name,
+      nameEn: product.nameEn,
+      description: product.description,
+      price: product.price,
+      image: product.image,
+      stock: product.stock,
+    },
+    // 4. Snake_case schema fallback
+    {
+      id: targetId,
       category_id: product.category,
       name: product.name,
       name_en: product.nameEn,
@@ -273,51 +295,48 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       price: product.price,
       old_price: product.oldPrice || null,
       image_url: product.image,
-      images: product.images || [product.image],
       stock: product.stock,
       is_featured: product.isFeatured || false,
       features: product.features || [],
       specs: product.specs || [],
-      colors: product.colors || [],
-      custom_options: product.customOptions || [],
       rating: 5.0,
       reviews_count: 0,
-    };
+    }
+  ];
 
-    const retryRes = await supabase
+  let lastError: any = null;
+  let data: any = null;
+
+  for (const candidate of candidates) {
+    let payload = { ...candidate, id: targetId };
+    let res = await supabase
       .from('products')
-      .insert([snakePayload])
+      .insert([payload])
       .select()
       .single();
 
-    if (retryRes.error) {
-      console.warn('Snake_case insert failed, attempting minimal core payload:', retryRes.error.message);
-      // Tier 3: Try minimal core payload
-      const minPayload: any = {
-        id: product.id,
-        category: product.category,
-        name: product.name,
-        nameEn: product.nameEn,
-        description: product.description,
-        price: product.price,
-        image: product.image,
-        stock: product.stock,
-      };
-
-      const minRes = await supabase
+    // If 409 Conflict (Duplicate Primary Key ID), append unique timestamp suffix and retry
+    if (res.error && (res.error.code === '23505' || res.error.status === 409 || res.error.message?.includes('duplicate key'))) {
+      targetId = `${product.id}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
+      payload.id = targetId;
+      console.warn(`Product ID collision detected (409). Retrying with new unique ID: ${targetId}`);
+      res = await supabase
         .from('products')
-        .insert([minPayload])
+        .insert([payload])
         .select()
         .single();
-
-      if (minRes.error) {
-        console.error('Final createProduct error:', minRes.error);
-        throw new Error(`خطأ في حفظ المنتج بقاعدة البيانات: ${minRes.error.message}`);
-      }
-      data = minRes.data;
-    } else {
-      data = retryRes.data;
     }
+
+    if (!res.error && res.data) {
+      data = res.data;
+      break;
+    }
+    lastError = res.error;
+  }
+
+  if (!data) {
+    console.error('All createProduct candidate payloads failed:', lastError);
+    throw new Error(`فشل إدراج المنتج بقاعدة البيانات: ${lastError?.message || 'خطأ غير معروف'}`);
   }
 
   return {
@@ -327,8 +346,8 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     description: data.description,
     price: Number(data.price),
     oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
-    rating: Number(data.rating),
-    reviewsCount: data.reviewsCount || data.reviews_count || 0,
+    rating: Number(data.rating || 5),
+    reviewsCount: Number(data.reviewsCount || data.reviews_count || 0),
     image: data.image || data.image_url || '',
     images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
     category: data.category || data.category_id || '',
@@ -344,59 +363,66 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  const camelPayload: any = {};
-  if (product.category !== undefined) camelPayload.category = product.category;
-  if (product.name !== undefined) camelPayload.name = product.name;
-  if (product.nameEn !== undefined) camelPayload.nameEn = product.nameEn;
-  if (product.description !== undefined) camelPayload.description = product.description;
-  if (product.price !== undefined) camelPayload.price = product.price;
-  if (product.oldPrice !== undefined) camelPayload.originalPrice = product.oldPrice || null;
-  if (product.image !== undefined) camelPayload.image = product.image;
-  if (product.images !== undefined) camelPayload.images = product.images;
-  if (product.stock !== undefined) camelPayload.stock = product.stock;
-  if (product.isFeatured !== undefined) camelPayload.isFeatured = product.isFeatured;
-  if (product.features !== undefined) camelPayload.features = product.features;
-  if (product.specs !== undefined) camelPayload.specs = product.specs;
-  if (product.colors !== undefined) camelPayload.colors = product.colors;
-  if (product.customOptions !== undefined) camelPayload.customOptions = product.customOptions;
+  const camelFull: any = {};
+  if (product.category !== undefined) camelFull.category = product.category;
+  if (product.name !== undefined) camelFull.name = product.name;
+  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
+  if (product.description !== undefined) camelFull.description = product.description;
+  if (product.price !== undefined) camelFull.price = product.price;
+  if (product.oldPrice !== undefined) camelFull.originalPrice = product.oldPrice || null;
+  if (product.image !== undefined) camelFull.image = product.image;
+  if (product.images !== undefined) camelFull.images = product.images;
+  if (product.stock !== undefined) camelFull.stock = product.stock;
+  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
+  if (product.features !== undefined) camelFull.features = product.features;
+  if (product.specs !== undefined) camelFull.specs = product.specs;
+  if (product.colors !== undefined) camelFull.colors = product.colors;
+  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
 
-  let { data, error } = await supabase
-    .from('products')
-    .update(camelPayload)
-    .eq('id', id)
-    .select()
-    .single();
+  const camelStandard = { ...camelFull };
+  delete camelStandard.colors;
+  delete camelStandard.customOptions;
+  delete camelStandard.images;
 
-  if (error) {
-    console.warn('CamelCase update failed, retrying with snake_case schema:', error.message);
-    const snakePayload: any = {};
-    if (product.category !== undefined) snakePayload.category_id = product.category;
-    if (product.name !== undefined) snakePayload.name = product.name;
-    if (product.nameEn !== undefined) snakePayload.name_en = product.nameEn;
-    if (product.description !== undefined) snakePayload.description = product.description;
-    if (product.price !== undefined) snakePayload.price = product.price;
-    if (product.oldPrice !== undefined) snakePayload.old_price = product.oldPrice || null;
-    if (product.image !== undefined) snakePayload.image_url = product.image;
-    if (product.images !== undefined) snakePayload.images = product.images;
-    if (product.stock !== undefined) snakePayload.stock = product.stock;
-    if (product.isFeatured !== undefined) snakePayload.is_featured = product.isFeatured;
-    if (product.features !== undefined) snakePayload.features = product.features;
-    if (product.specs !== undefined) snakePayload.specs = product.specs;
-    if (product.colors !== undefined) snakePayload.colors = product.colors;
-    if (product.customOptions !== undefined) snakePayload.custom_options = product.customOptions;
+  const snakeFull: any = {};
+  if (product.category !== undefined) snakeFull.category_id = product.category;
+  if (product.name !== undefined) snakeFull.name = product.name;
+  if (product.nameEn !== undefined) snakeFull.name_en = product.nameEn;
+  if (product.description !== undefined) snakeFull.description = product.description;
+  if (product.price !== undefined) snakeFull.price = product.price;
+  if (product.oldPrice !== undefined) snakeFull.old_price = product.oldPrice || null;
+  if (product.image !== undefined) snakeFull.image_url = product.image;
+  if (product.images !== undefined) snakeFull.images = product.images;
+  if (product.stock !== undefined) snakeFull.stock = product.stock;
+  if (product.isFeatured !== undefined) snakeFull.is_featured = product.isFeatured;
+  if (product.features !== undefined) snakeFull.features = product.features;
+  if (product.specs !== undefined) snakeFull.specs = product.specs;
+  if (product.colors !== undefined) snakeFull.colors = product.colors;
+  if (product.customOptions !== undefined) snakeFull.custom_options = product.customOptions;
 
-    const retryRes = await supabase
+  const candidates = [camelFull, camelStandard, snakeFull];
+  let data: any = null;
+  let lastError: any = null;
+
+  for (const payload of candidates) {
+    if (Object.keys(payload).length === 0) continue;
+    const res = await supabase
       .from('products')
-      .update(snakePayload)
+      .update(payload)
       .eq('id', id)
       .select()
       .single();
 
-    if (retryRes.error) {
-      console.error('Final updateProduct error:', retryRes.error);
-      throw new Error(`خطأ في تعديل المنتج بقاعدة البيانات: ${retryRes.error.message}`);
+    if (!res.error && res.data) {
+      data = res.data;
+      break;
     }
-    data = retryRes.data;
+    lastError = res.error;
+  }
+
+  if (!data) {
+    console.error('All updateProduct candidate payloads failed:', lastError);
+    throw new Error(`خطأ في تعديل المنتج بقاعدة البيانات: ${lastError?.message || 'خطأ غير معروف'}`);
   }
 
   return {
@@ -406,8 +432,8 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     description: data.description,
     price: Number(data.price),
     oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
-    rating: Number(data.rating),
-    reviewsCount: data.reviewsCount || data.reviews_count || 0,
+    rating: Number(data.rating || 5),
+    reviewsCount: Number(data.reviewsCount || data.reviews_count || 0),
     image: data.image || data.image_url || '',
     images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
     category: data.category || data.category_id || '',

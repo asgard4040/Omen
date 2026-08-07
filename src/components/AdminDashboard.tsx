@@ -618,7 +618,7 @@ export default function AdminDashboard({
       }
     } else {
       setEditingProduct(null);
-      setProdId(`wraith-${Math.random().toString(36).substring(2, 6)}`);
+      setProdId(`wraith-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`);
       setProdName('');
       setProdNameEn('');
       setProdDesc('');
