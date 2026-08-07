@@ -446,22 +446,24 @@ export default function AdminDashboard({
       .map(f => f.trim())
       .filter(f => f.length > 0);
 
-    // Process specs (format Label:Value per line)
+    // Process specs (supports Label:Value, Label - Value, or raw text per line)
     const specsArray = prodSpecsText
       .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
       .map(line => {
-        const parts = line.split(':');
-        if (parts.length >= 2) {
-          return { label: parts[0].trim(), value: parts.slice(1).join(':').trim() };
+        const match = line.match(/^([^:：\-=|]+)[:：\-=|](.+)$/);
+        if (match) {
+          return { label: match[1].trim(), value: match[2].trim() };
         }
-        return null;
-      })
-      .filter(spec => spec !== null) as { label: string; value: string }[];
+        return { label: 'المواصفة', value: line };
+      });
 
+    // Process multiple extra images (supports newlines, commas, or spaces)
     const extraImagesArray = prodExtraImagesText
-      .split('\n')
+      .split(/[\n,\s]+/)
       .map(img => img.trim())
-      .filter(img => img.length > 0);
+      .filter(img => img.length > 0 && (img.startsWith('http') || img.startsWith('/')));
 
     const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
 
@@ -601,11 +603,38 @@ export default function AdminDashboard({
       setProdStock(prod.stock);
       setProdCategory(prod.category);
       setProdImgUrl(prod.image);
-      const extraImgs = (prod.images || []).filter(img => img !== prod.image);
-      setProdExtraImagesText(extraImgs.join('\n'));
-      setProdIsFeatured(prod.isFeatured);
-      setProdFeaturesText(prod.features.join('\n'));
-      setProdSpecsText(prod.specs.map(s => `${s.label}:${s.value}`).join('\n'));
+      let extraImgsList: string[] = [];
+      if (Array.isArray(prod.images)) {
+        extraImgsList = prod.images.filter(img => typeof img === 'string' && img !== prod.image);
+      } else if (typeof prod.images === 'string') {
+        try {
+          const parsed = JSON.parse(prod.images);
+          if (Array.isArray(parsed)) extraImgsList = parsed.filter((img: any) => typeof img === 'string' && img !== prod.image);
+        } catch {
+          extraImgsList = (prod.images as string).split('\n').filter(img => img !== prod.image);
+        }
+      }
+      setProdExtraImagesText(extraImgsList.join('\n'));
+
+      setProdIsFeatured(!!prod.isFeatured);
+
+      const safeFeatures = Array.isArray(prod.features) ? prod.features : [];
+      setProdFeaturesText(safeFeatures.join('\n'));
+
+      const safeSpecs = Array.isArray(prod.specs) ? prod.specs : [];
+      const formattedSpecs = safeSpecs
+        .map((s: any) => {
+          if (typeof s === 'string') return s;
+          if (s && typeof s === 'object') {
+            const label = s.label || s.name || '';
+            const val = s.value || s.val || '';
+            return label && val ? `${label}:${val}` : (label || val || '');
+          }
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+      setProdSpecsText(formattedSpecs);
 
       if (prod.colors && prod.colors.length > 0) {
         setHasColorsSection(true);

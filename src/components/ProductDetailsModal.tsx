@@ -13,13 +13,35 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
   const [selectedOptions, setSelectedOptions] = useState<Record<string, string>>({});
   const [activeImage, setActiveImage] = useState<string>('');
 
+  const parseImagesArray = (imgPrimary?: string, imgExtra?: string[] | string): string[] => {
+    const list: string[] = [];
+    if (imgPrimary) list.push(imgPrimary);
+
+    if (Array.isArray(imgExtra)) {
+      list.push(...imgExtra);
+    } else if (typeof imgExtra === 'string' && imgExtra.trim().length > 0) {
+      try {
+        const parsed = JSON.parse(imgExtra);
+        if (Array.isArray(parsed)) list.push(...parsed);
+        else if (imgExtra.includes('\n')) list.push(...imgExtra.split('\n'));
+        else if (imgExtra.includes(',')) list.push(...imgExtra.split(','));
+        else if (imgExtra.startsWith('http')) list.push(imgExtra);
+      } catch {
+        if (imgExtra.includes('\n')) list.push(...imgExtra.split('\n'));
+        else if (imgExtra.includes(',')) list.push(...imgExtra.split(','));
+        else if (imgExtra.startsWith('http')) list.push(imgExtra);
+      }
+    }
+    return Array.from(new Set(list.map(s => typeof s === 'string' ? s.trim() : '').filter(Boolean)));
+  };
+
   useEffect(() => {
     if (product) {
       // Scroll to top when opening product details page
       window.scrollTo({ top: 0, behavior: 'smooth' });
 
       // Initialize active image
-      const imagesList = Array.from(new Set([product.image, ...(product.images || [])])).filter(Boolean);
+      const imagesList = parseImagesArray(product.image, product.images);
       setActiveImage(imagesList[0] || product.image);
 
       if (product.colors && product.colors.length > 0) {
@@ -48,7 +70,7 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
     setSelectedOptions((prev) => ({ ...prev, [optionName]: choice }));
   };
 
-  const allImages = Array.from(new Set([product.image, ...(product.images || [])])).filter(Boolean);
+  const allImages = parseImagesArray(product.image, product.images);
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0b071a] text-gray-100 overflow-y-auto font-sans animate-fade-in flex flex-col">
@@ -290,12 +312,16 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
               <div className="space-y-2">
                 <h3 className="text-xs font-bold text-white/60">المواصفات التقنية:</h3>
                 <div className="divide-y divide-white/5 bg-white/5 rounded-2xl border border-white/5 overflow-hidden">
-                  {product.specs.map((spec, i) => (
-                    <div key={i} className="flex justify-between p-3 text-xs">
-                      <span className="text-white/50">{spec.label}</span>
-                      <span className="font-bold text-white font-orbitron">{spec.value}</span>
-                    </div>
-                  ))}
+                  {product.specs.map((spec: any, i) => {
+                    const label = typeof spec === 'string' ? '' : (spec?.label || spec?.name || '');
+                    const value = typeof spec === 'string' ? spec : (spec?.value || spec?.val || '');
+                    return (
+                      <div key={i} className="flex justify-between p-3 text-xs">
+                        <span className="text-white/50">{label || 'المواصفة'}</span>
+                        <span className="font-bold text-white font-orbitron">{value}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}

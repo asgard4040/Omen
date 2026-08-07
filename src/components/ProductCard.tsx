@@ -63,14 +63,18 @@ export default function ProductCard({ product, onAddToCart, onViewDetails }: Pro
         
         {/* Technical specs badges */}
         <div className="flex flex-wrap gap-1.5 mb-3">
-          {product.specs.slice(0, 3).map((spec, i) => (
-            <span 
-              key={i} 
-              className="text-[10px] bg-brand-lavender/10 border border-brand-lavender/10 text-brand-lavender/80 px-2 py-0.5 rounded-none font-orbitron font-semibold"
-            >
-              {spec.value}
-            </span>
-          ))}
+          {Array.isArray(product.specs) && product.specs.slice(0, 3).map((spec: any, i) => {
+            const specText = typeof spec === 'string' ? spec : (spec?.value || spec?.label || '');
+            if (!specText) return null;
+            return (
+              <span 
+                key={i} 
+                className="text-[10px] bg-brand-lavender/10 border border-brand-lavender/10 text-brand-lavender/80 px-2 py-0.5 rounded-none font-orbitron font-semibold"
+              >
+                {specText}
+              </span>
+            );
+          })}
         </div>
 
         {/* Name and English Tag */}
