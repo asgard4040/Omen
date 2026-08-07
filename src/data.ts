@@ -38,6 +38,11 @@ export const PRODUCTS: Product[] = [
     rating: 4.9,
     reviewsCount: 142,
     image: 'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1625842268584-8f3290455651?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1527813713060-747efc002bc0?w=600&auto=format&fit=crop&q=80'
+    ],
     category: 'mouses',
     stock: 18,
     isFeatured: true,
@@ -64,6 +69,11 @@ export const PRODUCTS: Product[] = [
     rating: 5.0,
     reviewsCount: 64,
     image: 'https://images.unsplash.com/photo-1625842268584-8f3290455651?w=600&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1625842268584-8f3290455651?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1527813713060-747efc002bc0?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80'
+    ],
     category: 'mouses',
     stock: 7,
     isFeatured: true,
@@ -89,6 +99,11 @@ export const PRODUCTS: Product[] = [
     rating: 4.9,
     reviewsCount: 88,
     image: 'https://images.unsplash.com/photo-1527813713060-747efc002bc0?w=600&auto=format&fit=crop&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1527813713060-747efc002bc0?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?w=600&auto=format&fit=crop&q=80',
+      'https://images.unsplash.com/photo-1625842268584-8f3290455651?w=600&auto=format&fit=crop&q=80'
+    ],
     category: 'mouses',
     stock: 3,
     isFeatured: true,

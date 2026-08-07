@@ -39,6 +39,7 @@ export const productSchema = z.object({
   rating: z.number().min(0).max(5).default(5),
   reviews_count: z.number().int().nonnegative().default(0),
   image_url: z.string().url("رابط الصورة غير صحيح / Invalid Image URL"),
+  images: z.array(z.string()).optional().default([]),
   stock: z.number().int().nonnegative("الكمية لا يمكن أن تكون سالبة / Stock must be >= 0"),
   is_featured: z.boolean().default(false),
   features: z.array(z.string()).default([]),

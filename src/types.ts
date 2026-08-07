@@ -18,6 +18,7 @@ export interface Product {
   rating: number;
   reviewsCount: number;
   image: string;
+  images?: string[];
   category: string;
   stock: number;
   isFeatured: boolean;

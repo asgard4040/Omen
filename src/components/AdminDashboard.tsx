@@ -131,6 +131,7 @@ export default function AdminDashboard({
   const [prodStock, setProdStock] = useState(0);
   const [prodCategory, setProdCategory] = useState('');
   const [prodImgUrl, setProdImgUrl] = useState('');
+  const [prodExtraImagesText, setProdExtraImagesText] = useState('');
   const [prodIsFeatured, setProdIsFeatured] = useState(false);
   const [prodFeaturesText, setProdFeaturesText] = useState(''); // comma-separated or lines
   const [prodSpecsText, setProdSpecsText] = useState(''); // Label:Value lines
@@ -449,6 +450,13 @@ export default function AdminDashboard({
       })
       .filter(spec => spec !== null) as { label: string; value: string }[];
 
+    const extraImagesArray = prodExtraImagesText
+      .split('\n')
+      .map(img => img.trim())
+      .filter(img => img.length > 0);
+
+    const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
+
     const productPayload = {
       id: prodId,
       category: prodCategory,
@@ -458,6 +466,7 @@ export default function AdminDashboard({
       price: Number(prodPrice),
       oldPrice: prodOldPrice ? Number(prodOldPrice) : undefined,
       image: prodImgUrl,
+      images: allImagesCombined,
       stock: Number(prodStock),
       isFeatured: prodIsFeatured,
       features: featuresArray,
@@ -581,6 +590,8 @@ export default function AdminDashboard({
       setProdStock(prod.stock);
       setProdCategory(prod.category);
       setProdImgUrl(prod.image);
+      const extraImgs = (prod.images || []).filter(img => img !== prod.image);
+      setProdExtraImagesText(extraImgs.join('\n'));
       setProdIsFeatured(prod.isFeatured);
       setProdFeaturesText(prod.features.join('\n'));
       setProdSpecsText(prod.specs.map(s => `${s.label}:${s.value}`).join('\n'));
@@ -609,6 +620,7 @@ export default function AdminDashboard({
       setProdStock(10);
       setProdCategory(categories[0]?.id || 'mice');
       setProdImgUrl('');
+      setProdExtraImagesText('');
       setProdIsFeatured(false);
       setProdFeaturesText('');
       setProdSpecsText('');
@@ -1804,6 +1816,19 @@ export default function AdminDashboard({
                     ⚠️ خاصية رفع الملفات لمخزن Supabase Storage تتطلب تهيئة المتغيرات أولاً، يرجى كتابة رابط الصورة يدوياً في المعاينة.
                   </span>
                 )}
+              </div>
+
+              {/* EXTRA IMAGES FOR MULTI-GALLERY */}
+              <div className="bg-white/5 p-6 rounded-2xl border border-white/10 space-y-2">
+                <label className="text-[12px] font-bold text-brand-blue block">صور إضافية لمعرض المنتجات المتعدد (رابط صورة واحد في كل سطر)</label>
+                <p className="text-[10px] text-white/40">ستظهر هذه الصور كمعرض صور تفاعلي يمكن للعميل تصفحه داخل صفحة المنتج.</p>
+                <textarea
+                  rows={3}
+                  placeholder="https://images.unsplash.com/photo-1...&#10;https://images.unsplash.com/photo-2..."
+                  value={prodExtraImagesText}
+                  onChange={(e) => setProdExtraImagesText(e.target.value)}
+                  className="w-full rounded-2xl bg-black/40 border border-white/10 px-5 py-3 text-xs text-white text-left font-orbitron focus:outline-none focus:border-brand-blue transition-all"
+                />
               </div>
 
               {/* ADVANCED FIELDS (Features & Specs) */}

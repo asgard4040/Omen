@@ -215,6 +215,7 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
     rating: Number(p.rating),
     reviewsCount: p.reviewsCount || p.reviews_count || 0,
     image: p.image || p.image_url || '',
+    images: Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
     category: p.category || p.category_id || '',
     stock: p.stock,
     isFeatured: p.isFeatured || p.is_featured || false,
@@ -245,6 +246,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
         price: product.price,
         originalPrice: product.oldPrice || null,
         image: product.image,
+        images: product.images || [],
         stock: product.stock,
         features: product.features,
         specs: product.specs,
@@ -271,6 +273,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     rating: Number(data.rating),
     reviewsCount: data.reviewsCount || data.reviews_count || 0,
     image: data.image || data.image_url || '',
+    images: Array.isArray(data.images) ? data.images : [],
     category: data.category || data.category_id || '',
     stock: data.stock,
     isFeatured: data.isFeatured || data.is_featured || false,
@@ -292,6 +295,7 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (product.price !== undefined) payload.price = product.price;
   if (product.oldPrice !== undefined) payload.originalPrice = product.oldPrice || null;
   if (product.image !== undefined) payload.image = product.image;
+  if (product.images !== undefined) payload.images = product.images;
   if (product.stock !== undefined) payload.stock = product.stock;
   if (product.features !== undefined) payload.features = product.features;
   if (product.specs !== undefined) payload.specs = product.specs;
@@ -320,6 +324,7 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     rating: Number(data.rating),
     reviewsCount: data.reviewsCount || data.reviews_count || 0,
     image: data.image || data.image_url || '',
+    images: Array.isArray(data.images) ? data.images : [],
     category: data.category || data.category_id || '',
     stock: data.stock,
     isFeatured: data.isFeatured || data.is_featured || false,
