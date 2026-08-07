@@ -234,58 +234,82 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
 export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCount'>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  const { data, error } = await supabase
+  const basePayload: any = {
+    id: product.id,
+    category_id: product.category,
+    name: product.name,
+    name_en: product.nameEn,
+    description: product.description,
+    price: product.price,
+    old_price: product.oldPrice || null,
+    image_url: product.image,
+    images: product.images || [product.image],
+    stock: product.stock,
+    is_featured: product.isFeatured || false,
+    features: product.features || [],
+    specs: product.specs || [],
+    colors: product.colors || [],
+    custom_options: product.customOptions || [],
+    rating: 5.0,
+    reviews_count: 0,
+  };
+
+  let { data, error } = await supabase
     .from('products')
-    .insert([
-      {
-        id: product.id,
-        category: product.category,
-        category_id: product.category,
-        name: product.name,
-        nameEn: product.nameEn,
-        name_en: product.nameEn,
-        description: product.description,
-        price: product.price,
-        originalPrice: product.oldPrice || null,
-        old_price: product.oldPrice || null,
-        image: product.image,
-        image_url: product.image,
-        images: product.images || [],
-        stock: product.stock,
-        features: product.features,
-        specs: product.specs,
-        colors: product.colors || [],
-        customOptions: product.customOptions || [],
-        custom_options: product.customOptions || [],
-        rating: 5.0,
-        reviewsCount: 0,
-        reviews_count: 0,
-        available: true,
-      },
-    ])
+    .insert([basePayload])
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.warn('Initial product insert failed, retrying with safe core schema fields:', error.message);
+    const safePayload: any = {
+      id: product.id,
+      category_id: product.category,
+      name: product.name,
+      name_en: product.nameEn,
+      description: product.description,
+      price: product.price,
+      old_price: product.oldPrice || null,
+      image_url: product.image,
+      stock: product.stock,
+      is_featured: product.isFeatured || false,
+      features: product.features || [],
+      specs: product.specs || [],
+      rating: 5.0,
+      reviews_count: 0,
+    };
+
+    const retryRes = await supabase
+      .from('products')
+      .insert([safePayload])
+      .select()
+      .single();
+
+    if (retryRes.error) {
+      console.error('Final createProduct error:', retryRes.error);
+      throw new Error(`خطأ في حفظ المنتج بقاعدة البيانات: ${retryRes.error.message}`);
+    }
+    data = retryRes.data;
+  }
 
   return {
     id: data.id,
     name: data.name,
-    nameEn: data.nameEn || data.name_en || '',
+    nameEn: data.name_en || data.nameEn || '',
     description: data.description,
     price: Number(data.price),
-    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
+    oldPrice: data.old_price ? Number(data.old_price) : (data.originalPrice ? Number(data.originalPrice) : undefined),
     rating: Number(data.rating),
-    reviewsCount: data.reviewsCount || data.reviews_count || 0,
-    image: data.image || data.image_url || '',
-    images: Array.isArray(data.images) ? data.images : [],
-    category: data.category || data.category_id || '',
+    reviewsCount: data.reviews_count || data.reviewsCount || 0,
+    image: data.image_url || data.image || '',
+    images: Array.isArray(data.images) ? data.images : (data.image_url ? [data.image_url] : []),
+    category: data.category_id || data.category || '',
     stock: data.stock,
-    isFeatured: data.isFeatured || data.is_featured || false,
+    isFeatured: data.is_featured || data.isFeatured || false,
     features: data.features || [],
     specs: data.specs || [],
     colors: Array.isArray(data.colors) ? data.colors : [],
-    customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
+    customOptions: Array.isArray(data.custom_options || data.customOptions) ? (data.custom_options || data.customOptions) : [],
   };
 }
 
@@ -293,62 +317,67 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
   const payload: any = {};
-  if (product.category !== undefined) {
-    payload.category = product.category;
-    payload.category_id = product.category;
-  }
+  if (product.category !== undefined) payload.category_id = product.category;
   if (product.name !== undefined) payload.name = product.name;
-  if (product.nameEn !== undefined) {
-    payload.nameEn = product.nameEn;
-    payload.name_en = product.nameEn;
-  }
+  if (product.nameEn !== undefined) payload.name_en = product.nameEn;
   if (product.description !== undefined) payload.description = product.description;
   if (product.price !== undefined) payload.price = product.price;
-  if (product.oldPrice !== undefined) {
-    payload.originalPrice = product.oldPrice || null;
-    payload.old_price = product.oldPrice || null;
-  }
-  if (product.image !== undefined) {
-    payload.image = product.image;
-    payload.image_url = product.image;
-  }
+  if (product.oldPrice !== undefined) payload.old_price = product.oldPrice || null;
+  if (product.image !== undefined) payload.image_url = product.image;
   if (product.images !== undefined) payload.images = product.images;
   if (product.stock !== undefined) payload.stock = product.stock;
+  if (product.isFeatured !== undefined) payload.is_featured = product.isFeatured;
   if (product.features !== undefined) payload.features = product.features;
   if (product.specs !== undefined) payload.specs = product.specs;
   if (product.colors !== undefined) payload.colors = product.colors;
-  if (product.customOptions !== undefined) {
-    payload.customOptions = product.customOptions;
-    payload.custom_options = product.customOptions;
-  }
+  if (product.customOptions !== undefined) payload.custom_options = product.customOptions;
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('products')
     .update(payload)
     .eq('id', id)
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.warn('Initial product update failed, retrying with safe core schema fields:', error.message);
+    const safePayload = { ...payload };
+    delete safePayload.images;
+    delete safePayload.colors;
+    delete safePayload.custom_options;
+
+    const retryRes = await supabase
+      .from('products')
+      .update(safePayload)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (retryRes.error) {
+      console.error('Final updateProduct error:', retryRes.error);
+      throw new Error(`خطأ في تعديل المنتج بقاعدة البيانات: ${retryRes.error.message}`);
+    }
+    data = retryRes.data;
+  }
 
   return {
     id: data.id,
     name: data.name,
-    nameEn: data.nameEn || data.name_en || '',
+    nameEn: data.name_en || data.nameEn || '',
     description: data.description,
     price: Number(data.price),
-    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
+    oldPrice: data.old_price ? Number(data.old_price) : (data.originalPrice ? Number(data.originalPrice) : undefined),
     rating: Number(data.rating),
-    reviewsCount: data.reviewsCount || data.reviews_count || 0,
-    image: data.image || data.image_url || '',
-    images: Array.isArray(data.images) ? data.images : [],
-    category: data.category || data.category_id || '',
+    reviewsCount: data.reviews_count || data.reviewsCount || 0,
+    image: data.image_url || data.image || '',
+    images: Array.isArray(data.images) ? data.images : (data.image_url ? [data.image_url] : []),
+    category: data.category_id || data.category || '',
     stock: data.stock,
-    isFeatured: data.isFeatured || data.is_featured || false,
+    isFeatured: data.is_featured || data.isFeatured || false,
     features: data.features || [],
     specs: data.specs || [],
     colors: Array.isArray(data.colors) ? data.colors : [],
-    customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
+    customOptions: Array.isArray(data.custom_options || data.customOptions) ? (data.custom_options || data.customOptions) : [],
   };
 }
 
