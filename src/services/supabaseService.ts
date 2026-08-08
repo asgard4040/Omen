@@ -241,14 +241,27 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
 
     let safeCustomOptions: any[] = [];
     const rawCustomOpts = p.customOptions || p.custom_options;
-    if (Array.isArray(rawCustomOpts)) {
+    if (Array.isArray(rawCustomOpts) && rawCustomOpts.length > 0) {
       safeCustomOptions = rawCustomOpts;
-    } else if (typeof rawCustomOpts === 'string') {
+    } else if (typeof rawCustomOpts === 'string' && rawCustomOpts.trim().length > 0) {
       try {
         const parsed = JSON.parse(rawCustomOpts);
-        if (Array.isArray(parsed)) safeCustomOptions = parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) safeCustomOptions = parsed;
       } catch {}
     }
+
+    if (safeCustomOptions.length === 0 && Array.isArray(safeSpecs)) {
+      const backupEntry = safeSpecs.find(s => s && typeof s === 'object' && (s.label === '__customOptions__' || (s as any).name === '__customOptions__'));
+      if (backupEntry && backupEntry.value) {
+        try {
+          const parsedBackup = JSON.parse(backupEntry.value);
+          if (Array.isArray(parsedBackup)) safeCustomOptions = parsedBackup;
+        } catch {}
+      }
+    }
+
+    // Strip internal backup key from specs list
+    safeSpecs = safeSpecs.filter(s => s && typeof s === 'object' && s.label !== '__customOptions__' && (s as any).name !== '__customOptions__');
 
     let safeImages: string[] = [];
     if (Array.isArray(p.images)) {
@@ -299,6 +312,14 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 
   let targetId = product.id;
 
+  // Failsafe backup of customOptions inside specs
+  const customOptionsList = product.customOptions || [];
+  let preparedSpecs = Array.isArray(product.specs) ? [...product.specs] : [];
+  preparedSpecs = preparedSpecs.filter(s => s && typeof s === 'object' && s.label !== '__customOptions__' && (s as any).name !== '__customOptions__');
+  if (customOptionsList.length > 0) {
+    preparedSpecs.push({ label: '__customOptions__', value: JSON.stringify(customOptionsList) });
+  }
+
   const candidates: any[] = [
     // 1. Dual-mapped primary candidate (supports both camelCase and snake_case schema columns)
     {
@@ -319,10 +340,10 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       isFeatured: product.isFeatured || false,
       is_featured: product.isFeatured || false,
       features: product.features || [],
-      specs: product.specs || [],
+      specs: preparedSpecs,
       colors: product.colors || [],
-      customOptions: product.customOptions || [],
-      custom_options: product.customOptions || [],
+      customOptions: customOptionsList,
+      custom_options: customOptionsList,
       rating: 5.0,
       reviewsCount: 0,
       reviews_count: 0,
@@ -337,6 +358,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       price: product.price,
       image: product.image,
       stock: product.stock,
+      specs: preparedSpecs,
     },
   ];
 
@@ -421,10 +443,19 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 
   let safeCustomOptions: any[] = [];
   const rawCustomOpts = data.customOptions || data.custom_options;
-  if (Array.isArray(rawCustomOpts)) safeCustomOptions = rawCustomOpts;
-  else if (typeof rawCustomOpts === 'string') {
+  if (Array.isArray(rawCustomOpts) && rawCustomOpts.length > 0) safeCustomOptions = rawCustomOpts;
+  else if (typeof rawCustomOpts === 'string' && rawCustomOpts.trim().length > 0) {
     try { safeCustomOptions = JSON.parse(rawCustomOpts); } catch {}
   }
+
+  if (safeCustomOptions.length === 0 && Array.isArray(safeSpecs)) {
+    const backupEntry = safeSpecs.find(s => s && typeof s === 'object' && (s.label === '__customOptions__' || s.name === '__customOptions__'));
+    if (backupEntry && backupEntry.value) {
+      try { safeCustomOptions = JSON.parse(backupEntry.value); } catch {}
+    }
+  }
+
+  safeSpecs = safeSpecs.filter(s => s && typeof s === 'object' && s.label !== '__customOptions__' && s.name !== '__customOptions__');
 
   return {
     id: data.id,
@@ -449,6 +480,19 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
+
+  // Failsafe backup of customOptions inside specs
+  let preparedSpecs: any[] | undefined = undefined;
+  if (product.specs !== undefined || product.customOptions !== undefined) {
+    const customOptionsList = product.customOptions || [];
+    baseSpecs: Array.isArray(product.specs) ? [...product.specs] : [];
+    let baseSpecs = Array.isArray(product.specs) ? [...product.specs] : [];
+    baseSpecs = baseSpecs.filter(s => s && typeof s === 'object' && s.label !== '__customOptions__' && (s as any).name !== '__customOptions__');
+    if (customOptionsList.length > 0) {
+      baseSpecs.push({ label: '__customOptions__', value: JSON.stringify(customOptionsList) });
+    }
+    preparedSpecs = baseSpecs;
+  }
 
   // Candidate 1: Dual-mapped payload supporting both camelCase and snake_case columns
   const dualPayload: any = {};
@@ -479,7 +523,8 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     dualPayload.is_featured = product.isFeatured;
   }
   if (product.features !== undefined) dualPayload.features = product.features;
-  if (product.specs !== undefined) dualPayload.specs = product.specs;
+  if (preparedSpecs !== undefined) dualPayload.specs = preparedSpecs;
+  else if (product.specs !== undefined) dualPayload.specs = product.specs;
   if (product.colors !== undefined) dualPayload.colors = product.colors;
   if (product.customOptions !== undefined) {
     dualPayload.customOptions = product.customOptions;

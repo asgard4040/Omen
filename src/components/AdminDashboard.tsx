@@ -474,6 +474,30 @@ export default function AdminDashboard({
 
     const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
 
+    // Auto-commit any pending custom option group title or choice inputs
+    let optionsToSave = [...prodCustomOptions];
+
+    if (newOptionTitle.trim()) {
+      optionsToSave.push({ name: newOptionTitle.trim(), choices: [] });
+      setNewOptionTitle('');
+    }
+
+    optionsToSave = optionsToSave.map((grp, gIdx) => {
+      const pendingText = (newChoiceInputs[gIdx] || '').trim();
+      if (pendingText) {
+        const pendingChoices = pendingText.split(/[\r\n,]+/).map(c => c.trim()).filter(Boolean);
+        const setOfChoices = new Set(grp.choices);
+        pendingChoices.forEach(c => setOfChoices.add(c));
+        return { ...grp, choices: Array.from(setOfChoices) };
+      }
+      return grp;
+    });
+
+    setNewChoiceInputs({});
+    setProdCustomOptions(optionsToSave);
+
+    const validCustomOptions = optionsToSave.filter(o => typeof o.name === 'string' && o.name.trim() !== '' && o.choices.length > 0);
+
     const productPayload = {
       id: prodId,
       category: prodCategory,
@@ -489,7 +513,7 @@ export default function AdminDashboard({
       features: featuresArray,
       specs: specsArray,
       colors: hasColorsSection ? prodColors : [],
-      customOptions: prodCustomOptions.filter(o => o.name.trim() !== '' && o.choices.length > 0),
+      customOptions: validCustomOptions,
     };
 
     setIsSavingProduct(true);
