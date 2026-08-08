@@ -300,7 +300,27 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
   let targetId = product.id;
 
   const candidates: any[] = [
-    // 1. Primary Snake_case schema (matches schema.sql PostgreSQL table)
+    // 1. Standard camelCase (used by this app frontend and live database)
+    {
+      id: targetId,
+      category: product.category,
+      name: product.name,
+      nameEn: product.nameEn,
+      description: product.description,
+      price: product.price,
+      oldPrice: product.oldPrice || null,
+      image: product.image,
+      images: product.images || [product.image],
+      stock: product.stock,
+      isFeatured: product.isFeatured || false,
+      features: product.features || [],
+      specs: product.specs || [],
+      colors: product.colors || [],
+      customOptions: product.customOptions || [],
+      rating: 5.0,
+      reviewsCount: 0,
+    },
+    // 2. Snake_case schema (matches schema.sql)
     {
       id: targetId,
       category_id: product.category,
@@ -310,17 +330,17 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       price: product.price,
       old_price: product.oldPrice || null,
       image_url: product.image,
+      images: product.images || [product.image],
       stock: product.stock,
       is_featured: product.isFeatured || false,
       features: product.features || [],
       specs: product.specs || [],
       colors: product.colors || [],
       custom_options: product.customOptions || [],
-      images: product.images || [product.image],
       rating: 5.0,
       reviews_count: 0,
     },
-    // 2. Full camelCase (if custom columns colors/customOptions/images exist)
+    // 3. Alternate camelCase with originalPrice
     {
       id: targetId,
       category: product.category,
@@ -340,15 +360,15 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       rating: 5.0,
       reviewsCount: 0,
     },
-    // 3. Minimal snake_case core
+    // 4. Core camelCase fallback
     {
       id: targetId,
-      category_id: product.category,
+      category: product.category,
       name: product.name,
-      name_en: product.nameEn,
+      nameEn: product.nameEn,
       description: product.description,
       price: product.price,
-      image_url: product.image,
+      image: product.image,
       stock: product.stock,
     },
   ];
@@ -356,31 +376,57 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
   let lastError: any = null;
   let data: any = null;
 
-  for (const candidate of candidates) {
-    let payload = { ...candidate, id: targetId };
-    let res = await supabase
-      .from('products')
-      .insert([payload])
-      .select()
-      .single();
-
-    // If 409 Conflict (Duplicate Primary Key ID), append unique timestamp suffix and retry
-    if (res.error && (res.error.code === '23505' || (res.error as any).status === 409 || res.error.message?.includes('duplicate key'))) {
-      targetId = `${product.id}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
-      payload.id = targetId;
-      console.warn(`Product ID collision detected (409). Retrying with new unique ID: ${targetId}`);
-      res = await supabase
+  for (const candidatePayload of candidates) {
+    let payload = { ...candidatePayload, id: targetId };
+    
+    // Auto-cleaning retry loop up to 6 iterations per candidate
+    for (let attempt = 0; attempt < 6; attempt++) {
+      let res = await supabase
         .from('products')
         .insert([payload])
         .select()
         .single();
-    }
 
-    if (!res.error && res.data) {
-      data = res.data;
+      // If 409 Conflict (Duplicate Primary Key ID), append unique timestamp suffix and retry
+      if (res.error && (res.error.code === '23505' || (res.error as any).status === 409 || res.error.message?.includes('duplicate key'))) {
+        targetId = `${product.id}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
+        payload.id = targetId;
+        console.warn(`Product ID collision detected (409). Retrying with new unique ID: ${targetId}`);
+        res = await supabase
+          .from('products')
+          .insert([payload])
+          .select()
+          .single();
+      }
+
+      if (!res.error && res.data) {
+        data = res.data;
+        break;
+      }
+
+      lastError = res.error;
+      const errMsg = res.error?.message || '';
+
+      // Extract missing column name from PostgREST error message
+      const missingColMatch =
+        errMsg.match(/Could not find the '([^']+)' column/) ||
+        errMsg.match(/column "([^"]+)" of relation/) ||
+        errMsg.match(/column "([^"]+)" does not exist/);
+
+      if (missingColMatch && missingColMatch[1]) {
+        const missingCol = missingColMatch[1];
+        if (missingCol in payload) {
+          console.warn(`Column '${missingCol}' not found in Supabase schema. Removing column and retrying insert...`);
+          delete payload[missingCol];
+          if (Object.keys(payload).length === 0) break;
+          continue;
+        }
+      }
+
       break;
     }
-    lastError = res.error;
+
+    if (data) break;
   }
 
   if (!data) {
@@ -412,7 +458,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     nameEn: data.nameEn || data.name_en || '',
     description: data.description,
     price: Number(data.price),
-    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.old_price ? Number(data.old_price) : undefined),
+    oldPrice: data.originalPrice ? Number(data.originalPrice) : (data.oldPrice ? Number(data.oldPrice) : (data.old_price ? Number(data.old_price) : undefined)),
     rating: Number(data.rating || 5),
     reviewsCount: Number(data.reviewsCount || data.reviews_count || 0),
     image: data.image || data.image_url || '',
@@ -430,7 +476,24 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  // Candidate 1: Primary snake_case payload matching DB schema.sql
+  // Candidate 1: Standard camelCase payload (matches live App DB)
+  const camelFull: any = {};
+  if (product.category !== undefined) camelFull.category = product.category;
+  if (product.name !== undefined) camelFull.name = product.name;
+  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
+  if (product.description !== undefined) camelFull.description = product.description;
+  if (product.price !== undefined) camelFull.price = product.price;
+  if (product.oldPrice !== undefined) camelFull.oldPrice = product.oldPrice || null;
+  if (product.image !== undefined) camelFull.image = product.image;
+  if (product.images !== undefined) camelFull.images = product.images;
+  if (product.stock !== undefined) camelFull.stock = product.stock;
+  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
+  if (product.features !== undefined) camelFull.features = product.features;
+  if (product.specs !== undefined) camelFull.specs = product.specs;
+  if (product.colors !== undefined) camelFull.colors = product.colors;
+  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
+
+  // Candidate 2: Snake_case payload (matches schema.sql)
   const snakeFull: any = {};
   if (product.category !== undefined) snakeFull.category_id = product.category;
   if (product.name !== undefined) snakeFull.name = product.name;
@@ -447,54 +510,58 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (product.colors !== undefined) snakeFull.colors = product.colors;
   if (product.customOptions !== undefined) snakeFull.custom_options = product.customOptions;
 
-  // Candidate 2: Full camelCase payload
-  const camelFull: any = {};
-  if (product.category !== undefined) camelFull.category = product.category;
-  if (product.name !== undefined) camelFull.name = product.name;
-  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
-  if (product.description !== undefined) camelFull.description = product.description;
-  if (product.price !== undefined) camelFull.price = product.price;
-  if (product.oldPrice !== undefined) camelFull.originalPrice = product.oldPrice || null;
-  if (product.image !== undefined) camelFull.image = product.image;
-  if (product.images !== undefined) camelFull.images = product.images;
-  if (product.stock !== undefined) camelFull.stock = product.stock;
-  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
-  if (product.features !== undefined) camelFull.features = product.features;
-  if (product.specs !== undefined) camelFull.specs = product.specs;
-  if (product.colors !== undefined) camelFull.colors = product.colors;
-  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
+  // Candidate 3: Alternate camelCase with originalPrice
+  const camelAlt: any = { ...camelFull };
+  if (product.oldPrice !== undefined) {
+    delete camelAlt.oldPrice;
+    camelAlt.originalPrice = product.oldPrice || null;
+  }
 
-  // Candidate 3: Snake_case core (only guaranteed core columns)
-  const snakeCore: any = {};
-  if (product.category !== undefined) snakeCore.category_id = product.category;
-  if (product.name !== undefined) snakeCore.name = product.name;
-  if (product.nameEn !== undefined) snakeCore.name_en = product.nameEn;
-  if (product.description !== undefined) snakeCore.description = product.description;
-  if (product.price !== undefined) snakeCore.price = product.price;
-  if (product.image !== undefined) snakeCore.image_url = product.image;
-  if (product.stock !== undefined) snakeCore.stock = product.stock;
-  if (product.features !== undefined) snakeCore.features = product.features;
-  if (product.specs !== undefined) snakeCore.specs = product.specs;
-  if (product.images !== undefined) snakeCore.images = product.images;
-
-  const candidates = [snakeFull, camelFull, snakeCore];
+  const candidates = [camelFull, snakeFull, camelAlt];
   let data: any = null;
   let lastError: any = null;
 
-  for (const payload of candidates) {
+  for (const candidatePayload of candidates) {
+    let payload = { ...candidatePayload };
     if (Object.keys(payload).length === 0) continue;
-    const res = await supabase
-      .from('products')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single();
 
-    if (!res.error && res.data) {
-      data = res.data;
+    // Auto-cleaning retry loop up to 6 iterations per candidate
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const res = await supabase
+        .from('products')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (!res.error && res.data) {
+        data = res.data;
+        break;
+      }
+
+      lastError = res.error;
+      const errMsg = res.error?.message || '';
+
+      // Extract missing column name from PostgREST error message
+      const missingColMatch =
+        errMsg.match(/Could not find the '([^']+)' column/) ||
+        errMsg.match(/column "([^"]+)" of relation/) ||
+        errMsg.match(/column "([^"]+)" does not exist/);
+
+      if (missingColMatch && missingColMatch[1]) {
+        const missingCol = missingColMatch[1];
+        if (missingCol in payload) {
+          console.warn(`Column '${missingCol}' not found in Supabase schema. Removing column and retrying update...`);
+          delete payload[missingCol];
+          if (Object.keys(payload).length === 0) break;
+          continue;
+        }
+      }
+
       break;
     }
-    lastError = res.error;
+
+    if (data) break;
   }
 
   if (!data) {
