@@ -300,67 +300,34 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
   let targetId = product.id;
 
   const candidates: any[] = [
-    // 1. Standard camelCase (used by this app frontend and live database)
+    // 1. Dual-mapped primary candidate (supports both camelCase and snake_case schema columns)
     {
       id: targetId,
       category: product.category,
-      name: product.name,
-      nameEn: product.nameEn,
-      description: product.description,
-      price: product.price,
-      oldPrice: product.oldPrice || null,
-      image: product.image,
-      images: product.images || [product.image],
-      stock: product.stock,
-      isFeatured: product.isFeatured || false,
-      features: product.features || [],
-      specs: product.specs || [],
-      colors: product.colors || [],
-      customOptions: product.customOptions || [],
-      rating: 5.0,
-      reviewsCount: 0,
-    },
-    // 2. Snake_case schema (matches schema.sql)
-    {
-      id: targetId,
       category_id: product.category,
       name: product.name,
+      nameEn: product.nameEn,
       name_en: product.nameEn,
       description: product.description,
       price: product.price,
+      oldPrice: product.oldPrice || null,
       old_price: product.oldPrice || null,
+      image: product.image,
       image_url: product.image,
       images: product.images || [product.image],
       stock: product.stock,
+      isFeatured: product.isFeatured || false,
       is_featured: product.isFeatured || false,
       features: product.features || [],
       specs: product.specs || [],
       colors: product.colors || [],
+      customOptions: product.customOptions || [],
       custom_options: product.customOptions || [],
       rating: 5.0,
+      reviewsCount: 0,
       reviews_count: 0,
     },
-    // 3. Alternate camelCase with originalPrice
-    {
-      id: targetId,
-      category: product.category,
-      name: product.name,
-      nameEn: product.nameEn,
-      description: product.description,
-      price: product.price,
-      originalPrice: product.oldPrice || null,
-      image: product.image,
-      images: product.images || [product.image],
-      stock: product.stock,
-      isFeatured: product.isFeatured || false,
-      features: product.features || [],
-      specs: product.specs || [],
-      colors: product.colors || [],
-      customOptions: product.customOptions || [],
-      rating: 5.0,
-      reviewsCount: 0,
-    },
-    // 4. Core camelCase fallback
+    // 2. Minimal fallback core
     {
       id: targetId,
       category: product.category,
@@ -379,8 +346,8 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
   for (const candidatePayload of candidates) {
     let payload = { ...candidatePayload, id: targetId };
     
-    // Auto-cleaning retry loop up to 6 iterations per candidate
-    for (let attempt = 0; attempt < 6; attempt++) {
+    // Auto-cleaning retry loop up to 8 iterations per candidate
+    for (let attempt = 0; attempt < 8; attempt++) {
       let res = await supabase
         .from('products')
         .insert([payload])
@@ -452,6 +419,13 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     try { safeImages = JSON.parse(data.images); } catch { safeImages = data.images.split(/[\r\n,]+/).filter(Boolean); }
   }
 
+  let safeCustomOptions: any[] = [];
+  const rawCustomOpts = data.customOptions || data.custom_options;
+  if (Array.isArray(rawCustomOpts)) safeCustomOptions = rawCustomOpts;
+  else if (typeof rawCustomOpts === 'string') {
+    try { safeCustomOptions = JSON.parse(rawCustomOpts); } catch {}
+  }
+
   return {
     id: data.id,
     name: data.name,
@@ -469,55 +443,50 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     features: safeFeatures,
     specs: safeSpecs,
     colors: Array.isArray(data.colors) ? data.colors : [],
-    customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
+    customOptions: Array.isArray(safeCustomOptions) ? safeCustomOptions : [],
   };
 }
 
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  // Candidate 1: Standard camelCase payload (matches live App DB)
-  const camelFull: any = {};
-  if (product.category !== undefined) camelFull.category = product.category;
-  if (product.name !== undefined) camelFull.name = product.name;
-  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
-  if (product.description !== undefined) camelFull.description = product.description;
-  if (product.price !== undefined) camelFull.price = product.price;
-  if (product.oldPrice !== undefined) camelFull.oldPrice = product.oldPrice || null;
-  if (product.image !== undefined) camelFull.image = product.image;
-  if (product.images !== undefined) camelFull.images = product.images;
-  if (product.stock !== undefined) camelFull.stock = product.stock;
-  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
-  if (product.features !== undefined) camelFull.features = product.features;
-  if (product.specs !== undefined) camelFull.specs = product.specs;
-  if (product.colors !== undefined) camelFull.colors = product.colors;
-  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
-
-  // Candidate 2: Snake_case payload (matches schema.sql)
-  const snakeFull: any = {};
-  if (product.category !== undefined) snakeFull.category_id = product.category;
-  if (product.name !== undefined) snakeFull.name = product.name;
-  if (product.nameEn !== undefined) snakeFull.name_en = product.nameEn;
-  if (product.description !== undefined) snakeFull.description = product.description;
-  if (product.price !== undefined) snakeFull.price = product.price;
-  if (product.oldPrice !== undefined) snakeFull.old_price = product.oldPrice || null;
-  if (product.image !== undefined) snakeFull.image_url = product.image;
-  if (product.images !== undefined) snakeFull.images = product.images;
-  if (product.stock !== undefined) snakeFull.stock = product.stock;
-  if (product.isFeatured !== undefined) snakeFull.is_featured = product.isFeatured;
-  if (product.features !== undefined) snakeFull.features = product.features;
-  if (product.specs !== undefined) snakeFull.specs = product.specs;
-  if (product.colors !== undefined) snakeFull.colors = product.colors;
-  if (product.customOptions !== undefined) snakeFull.custom_options = product.customOptions;
-
-  // Candidate 3: Alternate camelCase with originalPrice
-  const camelAlt: any = { ...camelFull };
+  // Candidate 1: Dual-mapped payload supporting both camelCase and snake_case columns
+  const dualPayload: any = {};
+  if (product.category !== undefined) {
+    dualPayload.category = product.category;
+    dualPayload.category_id = product.category;
+  }
+  if (product.name !== undefined) dualPayload.name = product.name;
+  if (product.nameEn !== undefined) {
+    dualPayload.nameEn = product.nameEn;
+    dualPayload.name_en = product.nameEn;
+  }
+  if (product.description !== undefined) dualPayload.description = product.description;
+  if (product.price !== undefined) dualPayload.price = product.price;
   if (product.oldPrice !== undefined) {
-    delete camelAlt.oldPrice;
-    camelAlt.originalPrice = product.oldPrice || null;
+    dualPayload.oldPrice = product.oldPrice || null;
+    dualPayload.old_price = product.oldPrice || null;
+    dualPayload.originalPrice = product.oldPrice || null;
+  }
+  if (product.image !== undefined) {
+    dualPayload.image = product.image;
+    dualPayload.image_url = product.image;
+  }
+  if (product.images !== undefined) dualPayload.images = product.images;
+  if (product.stock !== undefined) dualPayload.stock = product.stock;
+  if (product.isFeatured !== undefined) {
+    dualPayload.isFeatured = product.isFeatured;
+    dualPayload.is_featured = product.isFeatured;
+  }
+  if (product.features !== undefined) dualPayload.features = product.features;
+  if (product.specs !== undefined) dualPayload.specs = product.specs;
+  if (product.colors !== undefined) dualPayload.colors = product.colors;
+  if (product.customOptions !== undefined) {
+    dualPayload.customOptions = product.customOptions;
+    dualPayload.custom_options = product.customOptions;
   }
 
-  const candidates = [camelFull, snakeFull, camelAlt];
+  const candidates = [dualPayload];
   let data: any = null;
   let lastError: any = null;
 
@@ -525,8 +494,8 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     let payload = { ...candidatePayload };
     if (Object.keys(payload).length === 0) continue;
 
-    // Auto-cleaning retry loop up to 6 iterations per candidate
-    for (let attempt = 0; attempt < 6; attempt++) {
+    // Auto-cleaning retry loop up to 8 iterations per candidate
+    for (let attempt = 0; attempt < 8; attempt++) {
       const res = await supabase
         .from('products')
         .update(payload)

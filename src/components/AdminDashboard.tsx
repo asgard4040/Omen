@@ -664,16 +664,41 @@ export default function AdminDashboard({
         .join('\n');
       setProdSpecsText(formattedSpecs);
 
-      if (prod.colors && prod.colors.length > 0) {
+      let safeColors: any[] = [];
+      const rawColors = prod.colors;
+      if (Array.isArray(rawColors)) safeColors = rawColors;
+      else if (typeof rawColors === 'string') {
+        try { const parsed = JSON.parse(rawColors); if (Array.isArray(parsed)) safeColors = parsed; } catch {}
+      }
+
+      if (safeColors.length > 0) {
         setHasColorsSection(true);
-        setProdColors([...prod.colors]);
+        setProdColors([...safeColors]);
       } else {
         setHasColorsSection(false);
         setProdColors([]);
       }
 
-      if (prod.customOptions && prod.customOptions.length > 0) {
-        setProdCustomOptions(prod.customOptions.map(c => ({ name: c.name, choices: [...c.choices] })));
+      const rawCustomOpts = prod.customOptions || (prod as any).custom_options;
+      let safeCustomOptsList: any[] = [];
+      if (Array.isArray(rawCustomOpts)) safeCustomOptsList = rawCustomOpts;
+      else if (typeof rawCustomOpts === 'string') {
+        try { const parsed = JSON.parse(rawCustomOpts); if (Array.isArray(parsed)) safeCustomOptsList = parsed; } catch {}
+      }
+
+      if (safeCustomOptsList.length > 0) {
+        setProdCustomOptions(
+          safeCustomOptsList
+            .map((c: any) => ({
+              name: c?.name || c?.title || '',
+              choices: Array.isArray(c?.choices)
+                ? [...c.choices]
+                : (typeof c?.choices === 'string'
+                    ? (() => { try { return JSON.parse(c.choices); } catch { return [c.choices]; } })()
+                    : [])
+            }))
+            .filter((c: any) => typeof c.name === 'string' && c.name.trim() !== '')
+        );
       } else {
         setProdCustomOptions([]);
       }

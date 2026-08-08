@@ -50,11 +50,23 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
         setSelectedColor(undefined);
       }
 
-      if (product.customOptions && product.customOptions.length > 0) {
+      const rawCustomOpts = product.customOptions || (product as any).custom_options;
+      let safeCustomOpts: any[] = [];
+      if (Array.isArray(rawCustomOpts)) safeCustomOpts = rawCustomOpts;
+      else if (typeof rawCustomOpts === 'string') {
+        try { const parsed = JSON.parse(rawCustomOpts); if (Array.isArray(parsed)) safeCustomOpts = parsed; } catch {}
+      }
+
+      if (safeCustomOpts.length > 0) {
         const initialOpts: Record<string, string> = {};
-        product.customOptions.forEach((opt) => {
-          if (opt.choices && opt.choices.length > 0) {
-            initialOpts[opt.name] = opt.choices[0];
+        safeCustomOpts.forEach((opt: any) => {
+          let choicesList: string[] = [];
+          if (Array.isArray(opt.choices)) choicesList = opt.choices;
+          else if (typeof opt.choices === 'string') {
+            try { const parsed = JSON.parse(opt.choices); if (Array.isArray(parsed)) choicesList = parsed; } catch { choicesList = [opt.choices]; }
+          }
+          if (opt.name && choicesList.length > 0) {
+            initialOpts[opt.name] = choicesList[0];
           }
         });
         setSelectedOptions(initialOpts);
@@ -71,6 +83,13 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
   };
 
   const allImages = parseImagesArray(product.image, product.images);
+
+  const rawCustomOpts = product.customOptions || (product as any).custom_options;
+  let safeCustomOptions: any[] = [];
+  if (Array.isArray(rawCustomOpts)) safeCustomOptions = rawCustomOpts;
+  else if (typeof rawCustomOpts === 'string') {
+    try { const parsed = JSON.parse(rawCustomOpts); if (Array.isArray(parsed)) safeCustomOptions = parsed; } catch {}
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-[#0b071a] text-gray-100 overflow-y-auto font-sans animate-fade-in flex flex-col">
@@ -258,37 +277,45 @@ export default function ProductDetailsModal({ product, onClose, onAddToCart }: P
             )}
 
             {/* CUSTOM OPTIONS SELECTION */}
-            {product.customOptions && product.customOptions.length > 0 && (
+            {safeCustomOptions.length > 0 && (
               <div className="bg-white/5 p-5 rounded-3xl border border-white/10 space-y-4">
                 <div className="flex items-center gap-2 text-xs font-bold text-white">
                   <SlidersHorizontal className="h-4 w-4 text-brand-blue" />
                   <span>خيارات التخصيص للمنتج:</span>
                 </div>
 
-                {product.customOptions.map((opt, optIdx) => (
-                  <div key={optIdx} className="space-y-2">
-                    <label className="text-[11px] font-bold text-white/60 block">{opt.name}:</label>
-                    <div className="flex flex-wrap gap-2">
-                      {opt.choices.map((choice, cIdx) => {
-                        const isSelected = selectedOptions[opt.name] === choice;
-                        return (
-                          <button
-                            key={cIdx}
-                            type="button"
-                            onClick={() => handleChoiceSelect(opt.name, choice)}
-                            className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
-                              isSelected
-                                ? 'bg-brand-blue text-white border-brand-blue shadow-[0_0_15px_rgba(33,42,220,0.5)]'
-                                : 'bg-black/40 border-white/10 text-white/70 hover:border-white/30'
-                            }`}
-                          >
-                            {choice}
-                          </button>
-                        );
-                      })}
+                {safeCustomOptions.map((opt: any, optIdx: number) => {
+                  let choicesList: string[] = [];
+                  if (Array.isArray(opt.choices)) choicesList = opt.choices;
+                  else if (typeof opt.choices === 'string') {
+                    try { const parsed = JSON.parse(opt.choices); if (Array.isArray(parsed)) choicesList = parsed; } catch { choicesList = [opt.choices]; }
+                  }
+                  if (!opt.name || choicesList.length === 0) return null;
+                  return (
+                    <div key={optIdx} className="space-y-2">
+                      <label className="text-[11px] font-bold text-white/60 block">{opt.name}:</label>
+                      <div className="flex flex-wrap gap-2">
+                        {choicesList.map((choice: string, cIdx: number) => {
+                          const isSelected = selectedOptions[opt.name] === choice;
+                          return (
+                            <button
+                              key={cIdx}
+                              type="button"
+                              onClick={() => handleChoiceSelect(opt.name, choice)}
+                              className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                isSelected
+                                  ? 'bg-brand-blue text-white border-brand-blue shadow-[0_0_15px_rgba(33,42,220,0.5)]'
+                                  : 'bg-black/40 border-white/10 text-white/70 hover:border-white/30'
+                              }`}
+                            >
+                              {choice}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
