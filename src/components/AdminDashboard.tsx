@@ -675,6 +675,7 @@ export default function AdminDashboard({
         } catch {}
       }
       const formattedSpecs = safeSpecs
+        .filter((s: any) => s && typeof s === 'object' && s.label !== '__customOptions__' && s.name !== '__customOptions__')
         .map((s: any) => {
           if (typeof s === 'string') return s.trim();
           if (s && typeof s === 'object') {
@@ -703,11 +704,39 @@ export default function AdminDashboard({
         setProdColors([]);
       }
 
-      const rawCustomOpts = prod.customOptions || (prod as any).custom_options;
       let safeCustomOptsList: any[] = [];
-      if (Array.isArray(rawCustomOpts)) safeCustomOptsList = rawCustomOpts;
-      else if (typeof rawCustomOpts === 'string') {
-        try { const parsed = JSON.parse(rawCustomOpts); if (Array.isArray(parsed)) safeCustomOptsList = parsed; } catch {}
+      const parseCustomOpts = (val: any): any[] => {
+        if (Array.isArray(val) && val.length > 0) return val;
+        if (typeof val === 'string') {
+          const trimmed = val.trim();
+          if (trimmed.length > 0 && trimmed !== '""' && trimmed !== 'null' && trimmed !== '{}' && trimmed !== '[]') {
+            try {
+              const parsed = JSON.parse(trimmed);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+              if (typeof parsed === 'string') {
+                const parsed2 = JSON.parse(parsed);
+                if (Array.isArray(parsed2) && parsed2.length > 0) return parsed2;
+              }
+            } catch {}
+          }
+        }
+        return [];
+      };
+
+      safeCustomOptsList = parseCustomOpts(prod.customOptions);
+      if (safeCustomOptsList.length === 0) {
+        safeCustomOptsList = parseCustomOpts((prod as any).custom_options);
+      }
+
+      // Backup check from specs if still empty
+      if (safeCustomOptsList.length === 0 && Array.isArray(safeSpecs)) {
+        const backupEntry = safeSpecs.find((s: any) => s && typeof s === 'object' && (s.label === '__customOptions__' || s.name === '__customOptions__'));
+        if (backupEntry && backupEntry.value) {
+          try {
+            const parsedBackup = JSON.parse(backupEntry.value);
+            if (Array.isArray(parsedBackup) && parsedBackup.length > 0) safeCustomOptsList = parsedBackup;
+          } catch {}
+        }
       }
 
       if (safeCustomOptsList.length > 0) {
@@ -718,7 +747,7 @@ export default function AdminDashboard({
               choices: Array.isArray(c?.choices)
                 ? [...c.choices]
                 : (typeof c?.choices === 'string'
-                    ? (() => { try { return JSON.parse(c.choices); } catch { return [c.choices]; } })()
+                    ? (() => { try { const p = JSON.parse(c.choices); return Array.isArray(p) ? p : [c.choices]; } catch { return [c.choices]; } })()
                     : [])
             }))
             .filter((c: any) => typeof c.name === 'string' && c.name.trim() !== '')
@@ -2170,6 +2199,12 @@ export default function AdminDashboard({
                     placeholder="اسم الخيار (مثال: الحجم، نوع المفتاح Switch Type)"
                     value={newOptionTitle}
                     onChange={(e) => setNewOptionTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddCustomOptionGroup();
+                      }
+                    }}
                     className="flex-1 rounded-xl bg-black/40 border border-white/10 px-4 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
                   />
                   <button
