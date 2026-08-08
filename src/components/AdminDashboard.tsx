@@ -145,6 +145,7 @@ export default function AdminDashboard({
   const [newColorHex, setNewColorHex] = useState('#3b82f6');
 
   const [prodCustomOptions, setProdCustomOptions] = useState<{ name: string; choices: string[] }[]>([]);
+  const [prodCustomOptionsText, setProdCustomOptionsText] = useState('');
   const [newOptionTitle, setNewOptionTitle] = useState('');
   const [newChoiceInputs, setNewChoiceInputs] = useState<Record<number, string>>({});
 
@@ -474,7 +475,25 @@ export default function AdminDashboard({
 
     const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
 
-    // Auto-commit any pending custom option group title or choice inputs
+    // 1. Parse options from prodCustomOptionsText (Format: اسم الخيار: قيمة1, قيمة2)
+    const textParsedOptions: { name: string; choices: string[] }[] = prodCustomOptionsText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+      .map(line => {
+        let colonIndex = line.indexOf(':');
+        if (colonIndex === -1) colonIndex = line.indexOf('：');
+        if (colonIndex !== -1) {
+          const name = line.substring(0, colonIndex).trim();
+          const choicesStr = line.substring(colonIndex + 1).trim();
+          const choices = choicesStr.split(/[\r\n,،]+/).map(c => c.trim()).filter(Boolean);
+          if (name) return { name, choices };
+        }
+        return { name: line, choices: [line] };
+      })
+      .filter(o => o.name.length > 0);
+
+    // 2. Auto-commit pending inputs in visual options section
     let optionsToSave = [...prodCustomOptions];
 
     if (newOptionTitle.trim()) {
@@ -485,7 +504,7 @@ export default function AdminDashboard({
     optionsToSave = optionsToSave.map((grp, gIdx) => {
       const pendingText = (newChoiceInputs[gIdx] || '').trim();
       if (pendingText) {
-        const pendingChoices = pendingText.split(/[\r\n,]+/).map(c => c.trim()).filter(Boolean);
+        const pendingChoices = pendingText.split(/[\r\n,،]+/).map(c => c.trim()).filter(Boolean);
         const setOfChoices = new Set(grp.choices);
         pendingChoices.forEach(c => setOfChoices.add(c));
         return { ...grp, choices: Array.from(setOfChoices) };
@@ -493,10 +512,30 @@ export default function AdminDashboard({
       return grp;
     });
 
-    setNewChoiceInputs({});
-    setProdCustomOptions(optionsToSave);
+    // 3. Merge textParsedOptions and optionsToSave into unified list
+    const optionsMap = new Map<string, Set<string>>();
 
-    const validCustomOptions = optionsToSave.filter(o => typeof o.name === 'string' && o.name.trim() !== '' && o.choices.length > 0);
+    textParsedOptions.forEach(opt => {
+      if (!optionsMap.has(opt.name)) optionsMap.set(opt.name, new Set());
+      opt.choices.forEach(c => optionsMap.get(opt.name)!.add(c));
+    });
+
+    optionsToSave.forEach(opt => {
+      if (opt.name.trim()) {
+        if (!optionsMap.has(opt.name.trim())) optionsMap.set(opt.name.trim(), new Set());
+        opt.choices.forEach(c => optionsMap.get(opt.name.trim())!.add(c));
+      }
+    });
+
+    const finalCustomOptionsPayload = Array.from(optionsMap.entries())
+      .map(([name, choicesSet]) => ({
+        name,
+        choices: Array.from(choicesSet),
+      }))
+      .filter(o => o.name.trim() !== '' && o.choices.length > 0);
+
+    setNewChoiceInputs({});
+    setProdCustomOptions(finalCustomOptionsPayload);
 
     const productPayload = {
       id: prodId,
@@ -513,7 +552,7 @@ export default function AdminDashboard({
       features: featuresArray,
       specs: specsArray,
       colors: hasColorsSection ? prodColors : [],
-      customOptions: validCustomOptions,
+      customOptions: finalCustomOptionsPayload,
     };
 
     setIsSavingProduct(true);
@@ -740,18 +779,23 @@ export default function AdminDashboard({
       }
 
       if (safeCustomOptsList.length > 0) {
-        setProdCustomOptions(
-          safeCustomOptsList
-            .map((c: any) => ({
-              name: c?.name || c?.title || '',
-              choices: Array.isArray(c?.choices)
-                ? [...c.choices]
-                : (typeof c?.choices === 'string'
-                    ? (() => { try { const p = JSON.parse(c.choices); return Array.isArray(p) ? p : [c.choices]; } catch { return [c.choices]; } })()
-                    : [])
-            }))
-            .filter((c: any) => typeof c.name === 'string' && c.name.trim() !== '')
-        );
+        const parsedOpts = safeCustomOptsList
+          .map((c: any) => ({
+            name: c?.name || c?.title || '',
+            choices: Array.isArray(c?.choices)
+              ? [...c.choices]
+              : (typeof c?.choices === 'string'
+                  ? (() => { try { const p = JSON.parse(c.choices); return Array.isArray(p) ? p : [c.choices]; } catch { return [c.choices]; } })()
+                  : [])
+          }))
+          .filter((c: any) => typeof c.name === 'string' && c.name.trim() !== '');
+
+        setProdCustomOptions(parsedOpts);
+
+        const formattedOptsText = parsedOpts
+          .map(c => `${c.name}: ${c.choices.join(', ')}`)
+          .join('\n');
+        setProdCustomOptionsText(formattedOptsText);
       } else {
         setProdCustomOptions([]);
       }
@@ -2189,24 +2233,40 @@ export default function AdminDashboard({
                       <Layers className="h-4 w-4 text-purple-400" />
                       قسم الخيارات المخصصة (Custom Options)
                     </h4>
-                    <p className="text-[10px] text-white/40 mt-0.5">سمّي خيارات المنتجات بنفسك (مثل: الحجم، نوع المحول Switch، السعة) وأضف الخيارات ليحددها العميل صفحة المنتج.</p>
+                    <p className="text-[10px] text-white/40 mt-0.5">يمكنك كتابة الخيارات كـ نصوص بالسطر مباشرة أو استخدام أزرار التخصيص التفاعلية أدناه.</p>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="اسم الخيار (مثال: الحجم، نوع المفتاح Switch Type)"
-                    value={newOptionTitle}
-                    onChange={(e) => setNewOptionTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddCustomOptionGroup();
-                      }
-                    }}
-                    className="flex-1 rounded-xl bg-black/40 border border-white/10 px-4 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                {/* Direct Multi-line Text Area Input */}
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-white/70 block">
+                    الخيارات المخصصة بالسطر (الصيغة: <span className="text-purple-300 font-mono font-bold">اسم الخيار: قيمة1, قيمة2</span>):
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder={`نوع المفتاح: أحمر خطي, بني لمسي, صامت\nالحجم: 60%, 75%, 100%`}
+                    value={prodCustomOptionsText}
+                    onChange={(e) => setProdCustomOptionsText(e.target.value)}
+                    className="w-full rounded-xl bg-black/40 border border-purple-500/30 px-4 py-2.5 text-xs text-white placeholder:text-white/30 focus:outline-none focus:border-purple-400 font-sans leading-relaxed"
                   />
+                </div>
+
+                <div className="pt-2 border-t border-white/10">
+                  <span className="text-[10px] text-purple-300 font-bold block mb-2">أو أضف الخيارات تفاعلياً بواسطة الأزرار:</span>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="اسم الخيار (مثال: الحجم، نوع المفتاح Switch Type)"
+                      value={newOptionTitle}
+                      onChange={(e) => setNewOptionTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCustomOptionGroup();
+                        }
+                      }}
+                      className="flex-1 rounded-xl bg-black/40 border border-white/10 px-4 py-2 text-xs text-white focus:outline-none focus:border-purple-400"
+                    />
                   <button
                     type="button"
                     onClick={handleAddCustomOptionGroup}
@@ -2282,6 +2342,7 @@ export default function AdminDashboard({
                     ))}
                   </div>
                 )}
+                </div>
               </div>
 
               <div className="flex items-center gap-3 pt-3 justify-start">
