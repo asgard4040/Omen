@@ -452,18 +452,25 @@ export default function AdminDashboard({
       .map(line => line.trim())
       .filter(Boolean)
       .map(line => {
-        const match = line.match(/^([^:：\-=|]+)[:：\-=|](.+)$/);
-        if (match) {
-          return { label: match[1].trim(), value: match[2].trim() };
+        let colonIndex = line.indexOf(':');
+        if (colonIndex === -1) colonIndex = line.indexOf('：');
+        if (colonIndex !== -1) {
+          const label = line.substring(0, colonIndex).trim();
+          const value = line.substring(colonIndex + 1).trim();
+          if (label && value) return { label, value };
+        }
+        const dashMatch = line.match(/^([^\-=|]+)[\-=|](.+)$/);
+        if (dashMatch) {
+          return { label: dashMatch[1].trim(), value: dashMatch[2].trim() };
         }
         return { label: 'المواصفة', value: line };
       });
 
-    // Process multiple extra images (supports newlines, commas, or spaces)
+    // Process multiple extra images (supports newlines, commas)
     const extraImagesArray = prodExtraImagesText
-      .split(/[\n,\s]+/)
+      .split(/[\r\n,]+/)
       .map(img => img.trim())
-      .filter(img => img.length > 0 && (img.startsWith('http') || img.startsWith('/')));
+      .filter(img => img.length > 0);
 
     const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
 
@@ -603,31 +610,52 @@ export default function AdminDashboard({
       setProdStock(prod.stock);
       setProdCategory(prod.category);
       setProdImgUrl(prod.image);
+
       let extraImgsList: string[] = [];
       if (Array.isArray(prod.images)) {
-        extraImgsList = prod.images.filter(img => typeof img === 'string' && img !== prod.image);
+        extraImgsList = prod.images.filter(img => typeof img === 'string' && img.trim() !== prod.image);
       } else if (typeof prod.images === 'string') {
         try {
           const parsed = JSON.parse(prod.images);
-          if (Array.isArray(parsed)) extraImgsList = parsed.filter((img: any) => typeof img === 'string' && img !== prod.image);
+          if (Array.isArray(parsed)) extraImgsList = parsed.filter((img: any) => typeof img === 'string' && img.trim() !== prod.image);
+          else extraImgsList = (prod.images as string).split(/[\r\n,]+/).filter(img => img.trim() !== prod.image);
         } catch {
-          extraImgsList = (prod.images as string).split('\n').filter(img => img !== prod.image);
+          extraImgsList = (prod.images as string).split(/[\r\n,]+/).filter(img => img.trim() !== prod.image);
         }
       }
-      setProdExtraImagesText(extraImgsList.join('\n'));
+      setProdExtraImagesText(extraImgsList.map(s => s.trim()).filter(Boolean).join('\n'));
 
       setProdIsFeatured(!!prod.isFeatured);
 
-      const safeFeatures = Array.isArray(prod.features) ? prod.features : [];
-      setProdFeaturesText(safeFeatures.join('\n'));
+      let safeFeatures: string[] = [];
+      if (Array.isArray(prod.features)) {
+        safeFeatures = prod.features;
+      } else if (typeof prod.features === 'string') {
+        try {
+          const parsed = JSON.parse(prod.features);
+          if (Array.isArray(parsed)) safeFeatures = parsed;
+          else safeFeatures = (prod.features as string).split('\n').filter(Boolean);
+        } catch {
+          safeFeatures = (prod.features as string).split('\n').filter(Boolean);
+        }
+      }
+      setProdFeaturesText(safeFeatures.map(f => typeof f === 'string' ? f.trim() : String(f)).filter(Boolean).join('\n'));
 
-      const safeSpecs = Array.isArray(prod.specs) ? prod.specs : [];
+      let safeSpecs: any[] = [];
+      if (Array.isArray(prod.specs)) {
+        safeSpecs = prod.specs;
+      } else if (typeof prod.specs === 'string') {
+        try {
+          const parsed = JSON.parse(prod.specs);
+          if (Array.isArray(parsed)) safeSpecs = parsed;
+        } catch {}
+      }
       const formattedSpecs = safeSpecs
         .map((s: any) => {
-          if (typeof s === 'string') return s;
+          if (typeof s === 'string') return s.trim();
           if (s && typeof s === 'object') {
-            const label = s.label || s.name || '';
-            const val = s.value || s.val || '';
+            const label = s.label || s.name || s.title || '';
+            const val = s.value || s.val || s.desc || '';
             return label && val ? `${label}:${val}` : (label || val || '');
           }
           return '';
@@ -735,7 +763,7 @@ export default function AdminDashboard({
     setHasColorsSection(true);
     setProdColors(sample.colors);
     setProdCustomOptions(sample.customOptions);
-    triggerToast('تمت تعبئة كافة بيانات المنتج التجريبية بنجاح! ✨', 'info');
+    triggerToast('تمت تعبئة كافة بيانات المنتج التجريبية بنجاح! ✨', 'success');
   };
 
   // SAVE CATEGORY (CREATE OR UPDATE)

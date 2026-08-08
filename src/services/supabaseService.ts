@@ -205,25 +205,88 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
     throw error;
   }
 
-  const mappedProducts: Product[] = (data || []).map((p) => ({
-    id: p.id,
-    name: p.name,
-    nameEn: p.nameEn || p.name_en || '',
-    description: p.description,
-    price: Number(p.price),
-    oldPrice: p.originalPrice ? Number(p.originalPrice) : (p.old_price ? Number(p.old_price) : undefined),
-    rating: Number(p.rating),
-    reviewsCount: p.reviewsCount || p.reviews_count || 0,
-    image: p.image || p.image_url || '',
-    images: Array.isArray(p.images) ? p.images : (p.image ? [p.image] : []),
-    category: p.category || p.category_id || '',
-    stock: p.stock,
-    isFeatured: p.isFeatured || p.is_featured || false,
-    features: p.features || [],
-    specs: Array.isArray(p.specs) ? p.specs : [],
-    colors: Array.isArray(p.colors) ? p.colors : [],
-    customOptions: Array.isArray(p.customOptions || p.custom_options) ? (p.customOptions || p.custom_options) : [],
-  }));
+  const mappedProducts: Product[] = (data || []).map((p) => {
+    let safeFeatures: string[] = [];
+    if (Array.isArray(p.features)) {
+      safeFeatures = p.features;
+    } else if (typeof p.features === 'string') {
+      try {
+        const parsed = JSON.parse(p.features);
+        if (Array.isArray(parsed)) safeFeatures = parsed;
+        else safeFeatures = p.features.split('\n').map((s: string) => s.trim()).filter(Boolean);
+      } catch {
+        safeFeatures = p.features.split('\n').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+
+    let safeSpecs: { label: string; value: string }[] = [];
+    if (Array.isArray(p.specs)) {
+      safeSpecs = p.specs;
+    } else if (typeof p.specs === 'string') {
+      try {
+        const parsed = JSON.parse(p.specs);
+        if (Array.isArray(parsed)) safeSpecs = parsed;
+      } catch {}
+    }
+
+    let safeColors: any[] = [];
+    if (Array.isArray(p.colors)) {
+      safeColors = p.colors;
+    } else if (typeof p.colors === 'string') {
+      try {
+        const parsed = JSON.parse(p.colors);
+        if (Array.isArray(parsed)) safeColors = parsed;
+      } catch {}
+    }
+
+    let safeCustomOptions: any[] = [];
+    const rawCustomOpts = p.customOptions || p.custom_options;
+    if (Array.isArray(rawCustomOpts)) {
+      safeCustomOptions = rawCustomOpts;
+    } else if (typeof rawCustomOpts === 'string') {
+      try {
+        const parsed = JSON.parse(rawCustomOpts);
+        if (Array.isArray(parsed)) safeCustomOptions = parsed;
+      } catch {}
+    }
+
+    let safeImages: string[] = [];
+    if (Array.isArray(p.images)) {
+      safeImages = p.images;
+    } else if (typeof p.images === 'string') {
+      try {
+        const parsed = JSON.parse(p.images);
+        if (Array.isArray(parsed)) safeImages = parsed;
+        else safeImages = p.images.split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+      } catch {
+        safeImages = p.images.split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    const mainImg = p.image || p.image_url || '';
+    if (safeImages.length === 0 && mainImg) {
+      safeImages = [mainImg];
+    }
+
+    return {
+      id: p.id,
+      name: p.name,
+      nameEn: p.nameEn || p.name_en || '',
+      description: p.description,
+      price: Number(p.price),
+      oldPrice: p.originalPrice ? Number(p.originalPrice) : (p.old_price ? Number(p.old_price) : undefined),
+      rating: Number(p.rating || 5),
+      reviewsCount: p.reviewsCount || p.reviews_count || 0,
+      image: mainImg,
+      images: safeImages,
+      category: p.category || p.category_id || '',
+      stock: Number(p.stock || 0),
+      isFeatured: p.isFeatured || p.is_featured || false,
+      features: safeFeatures,
+      specs: safeSpecs,
+      colors: safeColors,
+      customOptions: safeCustomOptions,
+    };
+  });
 
   return {
     products: mappedProducts,
@@ -237,7 +300,27 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
   let targetId = product.id;
 
   const candidates: any[] = [
-    // 1. Full camelCase (if custom columns colors/customOptions/images exist)
+    // 1. Primary Snake_case schema (matches schema.sql PostgreSQL table)
+    {
+      id: targetId,
+      category_id: product.category,
+      name: product.name,
+      name_en: product.nameEn,
+      description: product.description,
+      price: product.price,
+      old_price: product.oldPrice || null,
+      image_url: product.image,
+      stock: product.stock,
+      is_featured: product.isFeatured || false,
+      features: product.features || [],
+      specs: product.specs || [],
+      colors: product.colors || [],
+      custom_options: product.customOptions || [],
+      images: product.images || [product.image],
+      rating: 5.0,
+      reviews_count: 0,
+    },
+    // 2. Full camelCase (if custom columns colors/customOptions/images exist)
     {
       id: targetId,
       category: product.category,
@@ -257,35 +340,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       rating: 5.0,
       reviewsCount: 0,
     },
-    // 2. Standard camelCase (without extended customOptions/colors/images)
-    {
-      id: targetId,
-      category: product.category,
-      name: product.name,
-      nameEn: product.nameEn,
-      description: product.description,
-      price: product.price,
-      originalPrice: product.oldPrice || null,
-      image: product.image,
-      stock: product.stock,
-      isFeatured: product.isFeatured || false,
-      features: product.features || [],
-      specs: product.specs || [],
-      rating: 5.0,
-      reviewsCount: 0,
-    },
-    // 3. Minimal camelCase core
-    {
-      id: targetId,
-      category: product.category,
-      name: product.name,
-      nameEn: product.nameEn,
-      description: product.description,
-      price: product.price,
-      image: product.image,
-      stock: product.stock,
-    },
-    // 4. Snake_case schema fallback
+    // 3. Minimal snake_case core
     {
       id: targetId,
       category_id: product.category,
@@ -293,15 +348,9 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       name_en: product.nameEn,
       description: product.description,
       price: product.price,
-      old_price: product.oldPrice || null,
       image_url: product.image,
       stock: product.stock,
-      is_featured: product.isFeatured || false,
-      features: product.features || [],
-      specs: product.specs || [],
-      rating: 5.0,
-      reviews_count: 0,
-    }
+    },
   ];
 
   let lastError: any = null;
@@ -316,7 +365,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
       .single();
 
     // If 409 Conflict (Duplicate Primary Key ID), append unique timestamp suffix and retry
-    if (res.error && (res.error.code === '23505' || res.error.status === 409 || res.error.message?.includes('duplicate key'))) {
+    if (res.error && (res.error.code === '23505' || (res.error as any).status === 409 || res.error.message?.includes('duplicate key'))) {
       targetId = `${product.id}-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`;
       payload.id = targetId;
       console.warn(`Product ID collision detected (409). Retrying with new unique ID: ${targetId}`);
@@ -339,6 +388,24 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     throw new Error(`فشل إدراج المنتج بقاعدة البيانات: ${lastError?.message || 'خطأ غير معروف'}`);
   }
 
+  let safeFeatures: string[] = [];
+  if (Array.isArray(data.features)) safeFeatures = data.features;
+  else if (typeof data.features === 'string') {
+    try { safeFeatures = JSON.parse(data.features); } catch { safeFeatures = data.features.split('\n').filter(Boolean); }
+  }
+
+  let safeSpecs: any[] = [];
+  if (Array.isArray(data.specs)) safeSpecs = data.specs;
+  else if (typeof data.specs === 'string') {
+    try { safeSpecs = JSON.parse(data.specs); } catch {}
+  }
+
+  let safeImages: string[] = [];
+  if (Array.isArray(data.images)) safeImages = data.images;
+  else if (typeof data.images === 'string') {
+    try { safeImages = JSON.parse(data.images); } catch { safeImages = data.images.split(/[\r\n,]+/).filter(Boolean); }
+  }
+
   return {
     id: data.id,
     name: data.name,
@@ -349,12 +416,12 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     rating: Number(data.rating || 5),
     reviewsCount: Number(data.reviewsCount || data.reviews_count || 0),
     image: data.image || data.image_url || '',
-    images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
+    images: safeImages.length ? safeImages : [data.image || data.image_url || ''],
     category: data.category || data.category_id || '',
-    stock: data.stock,
+    stock: Number(data.stock || 0),
     isFeatured: data.isFeatured || data.is_featured || false,
-    features: data.features || [],
-    specs: data.specs || [],
+    features: safeFeatures,
+    specs: safeSpecs,
     colors: Array.isArray(data.colors) ? data.colors : [],
     customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
   };
@@ -363,37 +430,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
 export async function updateProduct(id: string, product: Partial<Product>): Promise<Product> {
   if (!isSupabaseConfigured()) throw new Error('Supabase Not Configured');
 
-  const camelFull: any = {};
-  if (product.category !== undefined) camelFull.category = product.category;
-  if (product.name !== undefined) camelFull.name = product.name;
-  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
-  if (product.description !== undefined) camelFull.description = product.description;
-  if (product.price !== undefined) camelFull.price = product.price;
-  if (product.oldPrice !== undefined) camelFull.originalPrice = product.oldPrice || null;
-  if (product.image !== undefined) camelFull.image = product.image;
-  if (product.images !== undefined) camelFull.images = product.images;
-  if (product.stock !== undefined) camelFull.stock = product.stock;
-  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
-  if (product.features !== undefined) camelFull.features = product.features;
-  if (product.specs !== undefined) camelFull.specs = product.specs;
-  if (product.colors !== undefined) camelFull.colors = product.colors;
-  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
-
-  const camelStandard = { ...camelFull };
-  delete camelStandard.colors;
-  delete camelStandard.customOptions;
-  delete camelStandard.images;
-
-  // Candidate 3: Core camelCase (only standard guaranteed columns)
-  const camelCore: any = {};
-  if (product.category !== undefined) camelCore.category = product.category;
-  if (product.name !== undefined) camelCore.name = product.name;
-  if (product.nameEn !== undefined) camelCore.nameEn = product.nameEn;
-  if (product.description !== undefined) camelCore.description = product.description;
-  if (product.price !== undefined) camelCore.price = product.price;
-  if (product.image !== undefined) camelCore.image = product.image;
-  if (product.stock !== undefined) camelCore.stock = product.stock;
-
+  // Candidate 1: Primary snake_case payload matching DB schema.sql
   const snakeFull: any = {};
   if (product.category !== undefined) snakeFull.category_id = product.category;
   if (product.name !== undefined) snakeFull.name = product.name;
@@ -410,7 +447,37 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
   if (product.colors !== undefined) snakeFull.colors = product.colors;
   if (product.customOptions !== undefined) snakeFull.custom_options = product.customOptions;
 
-  const candidates = [camelFull, camelStandard, camelCore, snakeFull];
+  // Candidate 2: Full camelCase payload
+  const camelFull: any = {};
+  if (product.category !== undefined) camelFull.category = product.category;
+  if (product.name !== undefined) camelFull.name = product.name;
+  if (product.nameEn !== undefined) camelFull.nameEn = product.nameEn;
+  if (product.description !== undefined) camelFull.description = product.description;
+  if (product.price !== undefined) camelFull.price = product.price;
+  if (product.oldPrice !== undefined) camelFull.originalPrice = product.oldPrice || null;
+  if (product.image !== undefined) camelFull.image = product.image;
+  if (product.images !== undefined) camelFull.images = product.images;
+  if (product.stock !== undefined) camelFull.stock = product.stock;
+  if (product.isFeatured !== undefined) camelFull.isFeatured = product.isFeatured;
+  if (product.features !== undefined) camelFull.features = product.features;
+  if (product.specs !== undefined) camelFull.specs = product.specs;
+  if (product.colors !== undefined) camelFull.colors = product.colors;
+  if (product.customOptions !== undefined) camelFull.customOptions = product.customOptions;
+
+  // Candidate 3: Snake_case core (only guaranteed core columns)
+  const snakeCore: any = {};
+  if (product.category !== undefined) snakeCore.category_id = product.category;
+  if (product.name !== undefined) snakeCore.name = product.name;
+  if (product.nameEn !== undefined) snakeCore.name_en = product.nameEn;
+  if (product.description !== undefined) snakeCore.description = product.description;
+  if (product.price !== undefined) snakeCore.price = product.price;
+  if (product.image !== undefined) snakeCore.image_url = product.image;
+  if (product.stock !== undefined) snakeCore.stock = product.stock;
+  if (product.features !== undefined) snakeCore.features = product.features;
+  if (product.specs !== undefined) snakeCore.specs = product.specs;
+  if (product.images !== undefined) snakeCore.images = product.images;
+
+  const candidates = [snakeFull, camelFull, snakeCore];
   let data: any = null;
   let lastError: any = null;
 
@@ -435,6 +502,24 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     throw new Error(`خطأ في تعديل المنتج بقاعدة البيانات: ${lastError?.message || 'خطأ غير معروف'}`);
   }
 
+  let safeFeatures: string[] = [];
+  if (Array.isArray(data.features)) safeFeatures = data.features;
+  else if (typeof data.features === 'string') {
+    try { safeFeatures = JSON.parse(data.features); } catch { safeFeatures = data.features.split('\n').filter(Boolean); }
+  }
+
+  let safeSpecs: any[] = [];
+  if (Array.isArray(data.specs)) safeSpecs = data.specs;
+  else if (typeof data.specs === 'string') {
+    try { safeSpecs = JSON.parse(data.specs); } catch {}
+  }
+
+  let safeImages: string[] = [];
+  if (Array.isArray(data.images)) safeImages = data.images;
+  else if (typeof data.images === 'string') {
+    try { safeImages = JSON.parse(data.images); } catch { safeImages = data.images.split(/[\r\n,]+/).filter(Boolean); }
+  }
+
   return {
     id: data.id,
     name: data.name,
@@ -445,12 +530,12 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     rating: Number(data.rating || 5),
     reviewsCount: Number(data.reviewsCount || data.reviews_count || 0),
     image: data.image || data.image_url || '',
-    images: Array.isArray(data.images) ? data.images : (data.image ? [data.image] : []),
+    images: safeImages.length ? safeImages : [data.image || data.image_url || ''],
     category: data.category || data.category_id || '',
-    stock: data.stock,
+    stock: Number(data.stock || 0),
     isFeatured: data.isFeatured || data.is_featured || false,
-    features: data.features || [],
-    specs: data.specs || [],
+    features: safeFeatures,
+    specs: safeSpecs,
     colors: Array.isArray(data.colors) ? data.colors : [],
     customOptions: Array.isArray(data.customOptions || data.custom_options) ? (data.customOptions || data.custom_options) : [],
   };

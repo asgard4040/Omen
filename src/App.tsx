@@ -24,7 +24,7 @@ import Header from './components/Header';
 import ProductCard from './components/ProductCard';
 import ToastNotification, { ToastMessage } from './components/Toast';
 import { PRODUCTS, CATEGORIES } from './data';
-import { Product, CartItem, Order, Category } from './types';
+import { Product, CartItem, Order, Category, ProductColor } from './types';
 import { isSupabaseConfigured } from './supabaseClient';
 import { getProducts, getCategories, getOrders, createOrderInSupabase, getSettings } from './services/supabaseService';
 

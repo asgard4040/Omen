@@ -166,6 +166,7 @@ export default function CartDrawer({
         createdOrderObj = {
           id: orderId,
           customerName: formData.name,
+          email: '',
           phone: formData.phone,
           address: formData.address,
           city: formData.city,
@@ -173,6 +174,7 @@ export default function CartDrawer({
           totalAmount: total,
           status: 'pending',
           createdAt: createdAt,
+          paymentMethod: 'cod',
         };
 
         if (isSupabaseConfigured()) {
