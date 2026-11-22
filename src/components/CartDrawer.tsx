@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Trash2, Plus, Minus, ShoppingBag, Truck, Coins, CheckCircle2, Loader2, ArrowRight, MapPin, Phone, User, MessageSquare, Download } from 'lucide-react';
 import { CartItem, Product, Order } from '../types';
@@ -27,6 +27,16 @@ export default function CartDrawer({
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'form' | 'success'>('cart');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [createdOrder, setCreatedOrder] = useState<Order | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -163,14 +173,16 @@ export default function CartDrawer({
           />
           
           <motion.div
-            initial={{ x: '100%', opacity: 0, scale: 0.95 }}
-            animate={{ x: 0, opacity: 1, scale: 1 }}
-            exit={{ x: '100%', opacity: 0, scale: 0.95 }}
-            transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed top-4 right-4 bottom-4 w-full max-w-md z-[60] flex flex-col bg-black/40 backdrop-blur-2xl border border-white/10 rounded-3xl shadow-[0_0_50px_rgba(33,42,220,0.2)] overflow-hidden text-right"
+            role="dialog"
+            aria-labelledby="cart-drawer-title"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 z-[60] flex flex-col overflow-hidden bg-[#0b071a] text-right pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:inset-y-4 lg:right-4 lg:left-auto lg:w-full lg:max-w-md lg:border lg:border-white/10 lg:bg-black/40 lg:p-0 lg:shadow-[0_0_50px_rgba(33,42,220,0.2)] lg:backdrop-blur-2xl"
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-5 border-b border-white/5 bg-gradient-to-r from-transparent to-brand-blue/10 relative overflow-hidden">
+            <div className="relative flex shrink-0 items-center justify-between overflow-hidden border-b border-white/5 bg-gradient-to-r from-transparent to-brand-blue/10 px-4 py-3 lg:px-6 lg:py-5">
               <div className="absolute top-0 right-0 w-32 h-full bg-brand-blue/20 blur-2xl rounded-full" />
               
               <div className="flex items-center gap-3 relative z-10">
@@ -178,7 +190,7 @@ export default function CartDrawer({
                   <ShoppingBag className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-lg font-black text-white tracking-wide">
+                  <h2 id="cart-drawer-title" className="text-lg font-black text-white tracking-wide">
                     {checkoutStep === 'cart' && 'سلة المشتريات'}
                     {checkoutStep === 'form' && 'إتمام الطلب'}
                     {checkoutStep === 'success' && 'تم استلام الطلب'}
@@ -193,8 +205,10 @@ export default function CartDrawer({
 
               {checkoutStep !== 'success' && !isSubmitting && (
                 <button
+                  type="button"
+                  aria-label="إغلاق السلة"
                   onClick={onClose}
-                  className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 text-white/50 hover:bg-white/10 hover:text-white transition-all relative z-10"
+                  className="relative z-10 flex size-11 shrink-0 items-center justify-center bg-white/5 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -202,20 +216,20 @@ export default function CartDrawer({
             </div>
 
             {/* Content Body */}
-            <div className="flex-1 overflow-hidden relative">
+            <div className="relative min-h-0 flex-1 overflow-hidden">
               <AnimatePresence mode="wait">
                 
                 {/* STEP 1: CART LIST */}
                 {checkoutStep === 'cart' && (
                   <motion.div
                     key="cart"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     className="h-full flex flex-col"
                   >
                     {cartItems.length === 0 ? (
-                      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+                      <div className="flex min-h-0 flex-1 flex-col items-center justify-center-safe overflow-y-auto overscroll-contain p-6 text-center lg:p-8">
                         <motion.div
                           animate={{ y: [0, -10, 0] }}
                           transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
@@ -236,7 +250,7 @@ export default function CartDrawer({
                       </div>
                     ) : (
                       <>
-                        <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+                        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 scrollbar-hide lg:p-6">
                           <AnimatePresence>
                             {cartItems.map((item, i) => {
                               const itemId = item.id || item.product.id;
@@ -248,11 +262,11 @@ export default function CartDrawer({
                                 animate={{ opacity: 1, y: 0 }}
                                 exit={{ opacity: 0, scale: 0.9 }}
                                 transition={{ delay: i * 0.05 }}
-                                className="group relative overflow-hidden bg-white/5 border border-white/10 rounded-3xl p-3 flex items-center gap-4 hover:bg-white/10 hover:border-brand-blue/50 transition-all"
+                                className="group relative flex items-center gap-2 overflow-hidden border border-white/10 bg-white/5 p-3 transition-colors hover:border-brand-blue/50 hover:bg-white/10 lg:gap-4"
                               >
                                 <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/10 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
                                 
-                                <div className="relative w-20 h-20 rounded-2xl bg-white border border-white/10 flex items-center justify-center p-2 overflow-hidden shrink-0">
+                                <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden border border-white/10 bg-white p-2 lg:size-20">
                                   <img src={item.product.image} alt={item.product.name} className="object-contain w-full h-full" />
                                 </div>
                                 
@@ -280,7 +294,7 @@ export default function CartDrawer({
                                   
                                   <span className="text-[10px] text-brand-blue font-orbitron block mb-2 opacity-80">{item.product.nameEn}</span>
                                   
-                                  <div className="flex items-center justify-between">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
                                     <div className="flex items-baseline gap-1">
                                       <span className="text-base font-black font-orbitron text-white">{item.product.price.toLocaleString()}</span>
                                       <span className="text-[10px] text-white/40 font-bold">د.ع</span>
@@ -300,7 +314,7 @@ export default function CartDrawer({
                                   </div>
                                 </div>
 
-                                <button onClick={() => onRemoveItem(itemId)} className="absolute top-3 left-3 w-7 h-7 flex items-center justify-center rounded-full bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 transition-all hover:bg-red-500 hover:text-white cursor-pointer">
+                                <button type="button" aria-label={`حذف ${item.product.name}`} onClick={() => onRemoveItem(itemId)} className="relative flex size-9 shrink-0 cursor-pointer items-center justify-center self-start bg-red-500/10 text-red-400 transition-colors hover:bg-red-500 hover:text-white">
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                               </motion.div>
@@ -309,8 +323,8 @@ export default function CartDrawer({
                           </AnimatePresence>
                         </div>
 
-                        <div className="p-6 bg-black/40 border-t border-white/5 backdrop-blur-xl">
-                          <div className="space-y-3 mb-6">
+                        <div className="shrink-0 border-t border-white/5 bg-black/40 p-4 backdrop-blur-xl lg:p-6">
+                          <div className="mb-4 space-y-2 lg:mb-6 lg:space-y-3">
                             <div className="flex justify-between items-center text-xs text-white/60">
                               <span>مجموع المنتجات</span>
                               <span className="font-orbitron font-medium">{subtotal.toLocaleString()} د.ع</span>
@@ -344,18 +358,18 @@ export default function CartDrawer({
                 {checkoutStep === 'form' && (
                   <motion.div
                     key="form"
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 20 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
                     className="h-full flex flex-col"
                   >
-                    <div className="px-6 py-4 border-b border-white/5 bg-white/5 backdrop-blur-sm">
+                    <div className="shrink-0 border-b border-white/5 bg-white/5 px-4 py-3 backdrop-blur-sm lg:px-6 lg:py-4">
                       <button onClick={() => setCheckoutStep('cart')} disabled={isSubmitting} className="flex items-center gap-2 text-xs text-white/50 hover:text-brand-blue transition-colors cursor-pointer">
                         <ArrowRight className="w-4 h-4" /> العودة للسلة
                       </button>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-5 scrollbar-hide">
+                    <div className="min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain p-4 scrollbar-hide lg:p-6">
                       <div className="space-y-4">
                         <InputField label="الاسم بالكامل" name="name" value={formData.name} onChange={handleInputChange} error={formErrors.name} icon={<User className="w-4 h-4" />} disabled={isSubmitting} />
                         <InputField label="رقم الجوال" name="phone" value={formData.phone} onChange={handleInputChange} error={formErrors.phone} icon={<Phone className="w-4 h-4" />} disabled={isSubmitting} isLTR />
@@ -385,7 +399,7 @@ export default function CartDrawer({
                       )}
                     </div>
 
-                    <div className="p-6 bg-black/40 border-t border-white/5 backdrop-blur-xl">
+                    <div className="shrink-0 border-t border-white/5 bg-black/40 p-4 backdrop-blur-xl lg:p-6">
                       <button onClick={handleSubmitCheckout} disabled={isSubmitting} className="w-full relative h-14 rounded-2xl bg-brand-blue hover:bg-blue-600 text-white font-bold text-sm shadow-[0_0_20px_rgba(33,42,220,0.3)] transition-all flex items-center justify-center gap-2 overflow-hidden group disabled:opacity-50 disabled:pointer-events-none cursor-pointer">
                         {isSubmitting ? (
                           <><Loader2 className="w-5 h-5 animate-spin" /> جاري تأكيد الطلب...</>
@@ -406,7 +420,7 @@ export default function CartDrawer({
                     key="success"
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="h-full flex flex-col p-8 items-center justify-center text-center relative overflow-y-auto"
+                    className="relative flex h-full flex-col items-center justify-center-safe overflow-y-auto overscroll-contain p-4 text-center lg:p-8"
                   >
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-500/10 blur-[100px] rounded-full" />
                     
@@ -484,7 +498,7 @@ const InputField = ({ label, name, value, onChange, error, icon, disabled, place
         disabled={disabled}
         placeholder={placeholder}
         dir={isLTR ? 'ltr' : 'rtl'}
-        className={`relative w-full bg-black/50 border ${error ? 'border-red-500/50' : 'border-white/10 focus:border-brand-blue'} rounded-xl px-4 py-3.5 text-xs text-white placeholder-white/20 outline-none transition-colors ${isLTR ? 'font-orbitron tracking-wider' : ''}`}
+        className={`relative w-full bg-black/50 border ${error ? 'border-red-500/50' : 'border-white/10 focus:border-brand-blue'} rounded-xl px-4 py-3.5 text-base text-white placeholder-white/20 outline-none transition-colors lg:text-xs ${isLTR ? 'font-orbitron tracking-wider' : ''}`}
       />
     </div>
     {error && <span className="text-[10px] text-red-400 font-bold mt-1.5 block">{error}</span>}
@@ -501,7 +515,7 @@ const SelectField = ({ label, name, value, onChange, error, options, disabled, i
         value={value}
         onChange={onChange}
         disabled={disabled}
-        className={`relative w-full bg-black/50 border ${error ? 'border-red-500/50' : 'border-white/10 focus:border-brand-blue'} rounded-xl px-4 py-3.5 text-xs text-white outline-none transition-colors cursor-pointer appearance-none`}
+        className={`relative w-full bg-black/50 border ${error ? 'border-red-500/50' : 'border-white/10 focus:border-brand-blue'} rounded-xl px-4 py-3.5 text-base text-white outline-none transition-colors cursor-pointer appearance-none lg:text-xs`}
       >
         {options.map((opt: string) => <option key={opt} value={opt} className="bg-black text-white">{opt}</option>)}
       </select>
