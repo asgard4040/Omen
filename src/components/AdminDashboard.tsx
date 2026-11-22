@@ -49,6 +49,7 @@ import {
 import { Product, Category, Order } from '../types';
 import { isAdminPasswordValid, resolveAdminPassword } from './adminAuth';
 import { downloadOrderReceiptAsJPG } from '../utils/receiptGenerator';
+import { parseProductImages } from '../utils/productImages';
 
 interface AdminDashboardProps {
   isOpen: boolean;
@@ -467,11 +468,7 @@ export default function AdminDashboard({
         return { label: 'المواصفة', value: line };
       });
 
-    // Process multiple extra images (supports newlines, commas)
-    const extraImagesArray = prodExtraImagesText
-      .split(/[\r\n,]+/)
-      .map(img => img.trim())
-      .filter(img => img.length > 0);
+    const extraImagesArray = parseProductImages(prodExtraImagesText);
 
     const allImagesCombined = Array.from(new Set([prodImgUrl, ...extraImagesArray])).filter(Boolean);
 
@@ -674,19 +671,8 @@ export default function AdminDashboard({
       setProdCategory(prod.category);
       setProdImgUrl(prod.image);
 
-      let extraImgsList: string[] = [];
-      if (Array.isArray(prod.images)) {
-        extraImgsList = prod.images.filter(img => typeof img === 'string' && img.trim() !== prod.image);
-      } else if (typeof prod.images === 'string') {
-        try {
-          const parsed = JSON.parse(prod.images);
-          if (Array.isArray(parsed)) extraImgsList = parsed.filter((img: any) => typeof img === 'string' && img.trim() !== prod.image);
-          else extraImgsList = (prod.images as string).split(/[\r\n,]+/).filter(img => img.trim() !== prod.image);
-        } catch {
-          extraImgsList = (prod.images as string).split(/[\r\n,]+/).filter(img => img.trim() !== prod.image);
-        }
-      }
-      setProdExtraImagesText(extraImgsList.map(s => s.trim()).filter(Boolean).join('\n'));
+      const extraImages = parseProductImages(prod.images).filter(image => image !== prod.image);
+      setProdExtraImagesText(extraImages.join('\n'));
 
       setProdIsFeatured(!!prod.isFeatured);
 
