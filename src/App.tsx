@@ -96,7 +96,7 @@ export default function App() {
   // Drawer & Modal control
   const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Full Preloader Screen - stays active until real products are loaded
+  // Keep the preloader from index.html visible until the storefront renders.
   const [isInitialLoading, setIsInitialLoading] = useState(true);
 
   // Load live data from Supabase if configured, or fallbacks if not
@@ -326,14 +326,7 @@ export default function App() {
   ];
 
   if (isInitialLoading) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#0b071a]">
-        <div className="relative flex items-center justify-center">
-          <div className="w-14 h-14 rounded-full border-4 border-brand-blue/20 border-t-brand-blue animate-spin" />
-          <div className="absolute w-8 h-8 rounded-full bg-brand-blue/30 blur-md animate-pulse" />
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
