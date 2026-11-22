@@ -66,10 +66,117 @@
         color: #f3f4f6;
         overflow-x: hidden;
       }
+
+      /* The same splash stays in place while the bundle and storefront data load. */
+      .store-loader {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        box-sizing: border-box;
+        background:
+          radial-gradient(ellipse at 50% 42%, #252052 0%, transparent 54%),
+          #090714;
+        isolation: isolate;
+      }
+
+      #root:not(:empty) + .store-loader {
+        display: none;
+      }
+
+      .store-loader::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        background-image:
+          linear-gradient(#aaa6ff15 1px, transparent 1px),
+          linear-gradient(90deg, #aaa6ff15 1px, transparent 1px);
+        background-size: 36px 36px;
+        background-position: center;
+        mask-image: radial-gradient(ellipse, #000 0%, transparent 70%);
+      }
+
+      .store-loader__panel {
+        --corner: linear-gradient(#8a84ff, #8a84ff);
+        width: min(100%, 320px);
+        box-sizing: border-box;
+        display: grid;
+        justify-items: center;
+        padding: clamp(22px, 6vh, 44px) 20px 30px;
+        border: 1px solid #9b96ff34;
+        background:
+          var(--corner) left top / 18px 1px no-repeat,
+          var(--corner) left top / 1px 18px no-repeat,
+          var(--corner) right bottom / 18px 1px no-repeat,
+          var(--corner) right bottom / 1px 18px no-repeat,
+          linear-gradient(155deg, #17132bd9, #0d0b1be8);
+        box-shadow: 0 24px 70px #0007;
+        text-align: center;
+      }
+
+      .store-loader__logo {
+        display: block;
+        width: 92px;
+        height: 92px;
+        filter: drop-shadow(0 0 15px #6158ff6b);
+      }
+
+      .store-loader__name {
+        margin: 4px 0 24px;
+        color: #f7f6ff;
+        font: 800 clamp(19px, 6vw, 25px) / 1.2 "Orbitron", system-ui, sans-serif;
+        letter-spacing: .16em;
+      }
+
+      .store-loader__track {
+        direction: ltr;
+        width: min(100%, 132px);
+        height: 2px;
+        overflow: hidden;
+        background: #8278f43d;
+      }
+
+      .store-loader__track::after {
+        content: "";
+        display: block;
+        width: 44%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, #9287ff 38%, #e9e5ff 75%, transparent);
+        animation: store-loader-scan 1.35s ease-in-out infinite;
+      }
+
+      .store-loader__status {
+        margin: 12px 0 0;
+        color: #c6c0e9;
+        font: 600 13px / 1.6 "Cairo", system-ui, sans-serif;
+      }
+
+      @keyframes store-loader-scan {
+        from { transform: translateX(230%); }
+        to { transform: translateX(-100%); }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .store-loader__track::after {
+          animation: none;
+          margin-inline: auto;
+        }
+      }
     </style>
   </head>
   <body class="bg-[#0b071a] text-gray-100 font-sans selection:bg-purple-500/30 selection:text-purple-200">
     <div id="root"></div>
+    <div class="store-loader">
+      <div class="store-loader__panel">
+        <img class="store-loader__logo" src="/logo.png" width="92" height="92" alt="" fetchpriority="high" />
+        <p class="store-loader__name" lang="en" dir="ltr">OMEN STORE</p>
+        <div class="store-loader__track" aria-hidden="true"></div>
+        <p class="store-loader__status" role="status">جارٍ تحميل المتجر</p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
