@@ -1,5 +1,6 @@
 import { supabase, isSupabaseConfigured } from '../supabaseClient';
 import { Product, Category, Order } from '../types';
+import { parseProductImages } from '../utils/productImages';
 
 // Let's define the interface for order list item (which includes items)
 export interface RichOrder extends Order {
@@ -279,21 +280,10 @@ export async function getProducts(params: GetProductsParams = {}): Promise<{ pro
     // Strip internal backup key from specs list
     safeSpecs = safeSpecs.filter(s => s && typeof s === 'object' && s.label !== '__customOptions__' && (s as any).name !== '__customOptions__');
 
-    let safeImages: string[] = [];
-    if (Array.isArray(p.images)) {
-      safeImages = p.images;
-    } else if (typeof p.images === 'string') {
-      try {
-        const parsed = JSON.parse(p.images);
-        if (Array.isArray(parsed)) safeImages = parsed;
-        else safeImages = p.images.split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
-      } catch {
-        safeImages = p.images.split(/[\r\n,]+/).map((s: string) => s.trim()).filter(Boolean);
-      }
-    }
+    const safeImages = parseProductImages(p.images);
     const mainImg = p.image || p.image_url || '';
     if (safeImages.length === 0 && mainImg) {
-      safeImages = [mainImg];
+      safeImages.push(mainImg);
     }
 
     return {
@@ -480,11 +470,7 @@ export async function createProduct(product: Omit<Product, 'rating' | 'reviewsCo
     try { safeSpecs = JSON.parse(data.specs); } catch {}
   }
 
-  let safeImages: string[] = [];
-  if (Array.isArray(data.images)) safeImages = data.images;
-  else if (typeof data.images === 'string') {
-    try { safeImages = JSON.parse(data.images); } catch { safeImages = data.images.split(/[\r\n,]+/).filter(Boolean); }
-  }
+  const safeImages = parseProductImages(data.images);
 
   let safeCustomOptions: any[] = [];
   const rawCustomOpts = data.customOptions || data.custom_options;
@@ -650,11 +636,7 @@ export async function updateProduct(id: string, product: Partial<Product>): Prom
     try { safeSpecs = JSON.parse(data.specs); } catch {}
   }
 
-  let safeImages: string[] = [];
-  if (Array.isArray(data.images)) safeImages = data.images;
-  else if (typeof data.images === 'string') {
-    try { safeImages = JSON.parse(data.images); } catch { safeImages = data.images.split(/[\r\n,]+/).filter(Boolean); }
-  }
+  const safeImages = parseProductImages(data.images);
 
   return {
     id: data.id,
